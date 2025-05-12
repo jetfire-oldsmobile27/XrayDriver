@@ -1,39 +1,38 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.20)
+cmake_policy(SET CMP0167 NEW)
 project(XRayDriver LANGUAGES CXX)
 
-find_package(Boost 1.85 REQUIRED COMPONENTS system asio log)
-find_package(nlohmann_json 3.11 REQUIRED)
-find_package(OpenSSL REQUIRED)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(${PROJECT_NAME}
-    src/main.cpp
-    src/commands.cpp                    
-    src/eventnotifier.cpp               
-    src/xrayprotocolstrategy.cpp
-    src/commandservice.cpp              
-    src/httpserver.cpp                  
-    src/singleton.cpp                   
-    src/xraytubecontroller.cpp
-    src/daemonizer.cpp                  
-    src/iprotocolstrategy.cpp           
-    src/syncverifier.cpp
+find_package(Boost 1.86 CONFIG REQUIRED COMPONENTS system filesystem json)
+find_package(SQLite3 CONFIG REQUIRED)
+find_package(spdlog REQUIRED)
+
+if(APPLE)
+    find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
+    find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
+endif()
+
+include_directories(
+    include 
+    thirdparty 
+    ${Boost_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+file(GLOB SOURCES src/*.cpp)
+
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-    Boost::boost
-    Boost::asio
-    Boost::system
-    Boost::log
-    nlohmann_json::nlohmann_json
-    OpenSSL::SSL
-)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED YES
+        Boost::system
+        Boost::filesystem
+        Boost::json
+        SQLite::SQLite3
+        spdlog::spdlog
+        $<$<PLATFORM_ID:Darwin>:${COCOA_FRAMEWORK}>
+        $<$<PLATFORM_ID:Darwin>:${APPKIT_FRAMEWORK}>
 )

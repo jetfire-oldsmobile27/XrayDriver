@@ -1,4 +1,3 @@
-// XRayTubeController.hpp
 #pragma once
 #include "protocolstrategy.hpp"
 #include "eventnotifier.hpp"
