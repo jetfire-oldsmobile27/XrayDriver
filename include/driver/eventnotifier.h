@@ -1,4 +1,3 @@
-// EventNotifier.hpp
 #pragma once
 #include <functional>
 #include <vector>

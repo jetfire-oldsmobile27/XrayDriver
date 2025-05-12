@@ -1,6 +1,6 @@
-// Commands.hpp
 #pragma once
-#include "iprotocolstrategy.hpp"
+#include "iprotocolstrategy.h"
+#include "xrayprotocolstrategy.h"
 
 class Command {
 public:

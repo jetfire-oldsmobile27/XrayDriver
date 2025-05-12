@@ -17,12 +17,15 @@ endif()
 
 include_directories(
     include 
-    thirdparty 
     ${Boost_INCLUDE_DIRS}
     ${SQLite3_INCLUDE_DIRS}
 )
 
-file(GLOB SOURCES src/*.cpp)
+file(GLOB_RECURSE SOURCES 
+    "src/*.cpp"
+    "src/driver/*.cpp"
+    "src/service/*.cpp"
+)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 

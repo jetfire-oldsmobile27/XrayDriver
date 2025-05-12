@@ -1,5 +1,5 @@
-#include "testserver.h"
-#include "testrecord.h"
+#include "service/testserver.h"
+#include "service/testrecord.h"
 
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -33,24 +33,28 @@ struct formatter<boost::asio::ip::tcp::endpoint> {
 
 namespace jetfire27::Engine::JsonParser {
     template<>
-    inline std::string Parser<TestRecord>::Marshall(const TestRecord& o) {
+    std::string Parser<TestRecord>::Marshall(const TestRecord& o) {
         json::object j;
-        j["id"]   = o.id;
+        j["id"] = o.id;
         j["name"] = o.name;
         return json::serialize(j);
     }
+    
     template<>
-    inline TestRecord Parser<TestRecord>::UnMarshall(const std::string& s) {
+    TestRecord Parser<TestRecord>::UnMarshall(const std::string& s) {
         auto o = json::parse(s).as_object();
-        return TestRecord{
-            int(o["id"].as_int64()),
+        return {
+            static_cast<int>(o["id"].as_int64()),
             std::string(o["name"].as_string())
         };
     }
 }
 
 TestServer::TestServer(unsigned short port, const std::string& dbPath)
-    : port_(port), db_(dbPath), ioc_(), acceptor_{ioc_, {tcp::v4(), port_}}
+    : port_(port), db_(dbPath), m_ioc(), 
+      m_acceptor(std::make_unique<boost::asio::ip::tcp::acceptor>(
+          m_ioc, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)))
+    : port_(port), db_("test.db"), m_ioc(), m_acceptor{m_ioc, {tcp::v4(), port_}}
 {
     
 
@@ -67,13 +71,11 @@ TestServer::TestServer(unsigned short port, const std::string& dbPath)
     }
 }
 
-TestServer::~TestServer() { Stop(); }
-
 void TestServer::Run() {
     try {
         for (;;) {
-            tcp::socket sock{ioc_};
-            acceptor_.accept(sock);           
+            auto sock = boost::asio::ip::tcp::socket(m_ioc);
+            m_acceptor->accept(sock); // Используем ->
             HandleSession(std::move(sock));
         }
     } catch (const std::exception& e) {
@@ -83,11 +85,35 @@ void TestServer::Run() {
 
 void TestServer::Stop() {
     boost::system::error_code ec;
-    acceptor_.close(ec);
-    ioc_.stop();
+    m_acceptor.close(ec);
+    m_ioc.stop();
 }
 
-void TestServer::HandleSession(tcp::socket socket) {
+TestServer::~TestServer() { Stop(); }
+
+void TestServer::Start(uint16_t port) {
+    m_acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(
+        m_ioc, boost::asio::ip::tcp::endpoint{boost::asio::ip::tcp::v4(), port});
+    Run();
+}
+
+void TestServer::sendSuccess(HttpResponse& res) {
+    res.result(http::status::ok);
+    res.body() = R"({"status":"success"})";
+    res.prepare_payload();
+}
+
+void TestServer::sendError(HttpResponse& res, const std::string& message) {
+    res.result(http::status::bad_request);
+    json::object error;
+    error["error"] = message;
+    res.body() = json::serialize(error);
+    res.prepare_payload();
+}
+
+
+
+void TestServer::HandleSession(boost::asio::ip::tcp::socket socket) {
     const auto& ep = socket.remote_endpoint();
     jetfire27::Engine::Logging::Logger::GetInstance().Info("New connection from {}:{}", ep.address().to_string(), ep.port());
     beast::tcp_stream stream(std::move(socket));
