@@ -2,6 +2,7 @@
 #include "driver/xraytubecontroller.h"
 #include "service/logger.h"
 #include "service/db.h"
+#include "parser.h"
 #include <boost/asio.hpp>
 #include <boost/beast/http.hpp>
 
@@ -9,6 +10,8 @@ namespace jetfire27::Engine::Test {
     class TestServer {
     public:
         TestServer(unsigned short port, const std::string& dbPath); // Исправлен конструктор
+         ~TestServer();
+        void Start(uint16_t port);
         void SetupHardwareInterface(boost::asio::io_context& io);
         void Run();
         void HandleSession(boost::asio::ip::tcp::socket socket); // Пространство имён + ;

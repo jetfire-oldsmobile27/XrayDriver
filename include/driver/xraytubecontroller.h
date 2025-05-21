@@ -1,12 +1,11 @@
-// include/driver/xraytubecontroller.h
 #pragma once
 #include "xrayprotocolstrategy.h"
 #include "iprotocolstrategy.h"
 #include "eventnotifier.h"
-#include "singleton.h"  // Добавлен недостающий заголовок
+#include "singleton.h"  
 #include <boost/asio/serial_port.hpp>
 
-class Event;  // Форвард-декларация
+class Event;  
 
 class XRayTubeController : public Singleton<XRayTubeController> {
 public:
@@ -17,5 +16,6 @@ private:
     void handle_hardware_event(const Event& e);
     
     std::unique_ptr<boost::asio::serial_port> m_port;
+    std::string m_choosen_port{"COM3"};
     std::unique_ptr<IProtocolStrategy> m_protocol;
 };

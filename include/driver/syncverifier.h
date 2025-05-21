@@ -1,4 +1,3 @@
-// SyncVerifier.hpp
 #pragma once
 #include <thread>
 #include <mutex>

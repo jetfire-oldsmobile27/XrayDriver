@@ -51,24 +51,45 @@ namespace jetfire27::Engine::JsonParser {
 }
 
 TestServer::TestServer(unsigned short port, const std::string& dbPath)
-    : port_(port), db_(dbPath), m_ioc(), 
-      m_acceptor(std::make_unique<boost::asio::ip::tcp::acceptor>(
-          m_ioc, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)))
-    : port_(port), db_("test.db"), m_ioc(), m_acceptor{m_ioc, {tcp::v4(), port_}}
+    : port_(port),
+      db_(dbPath),
+      m_ioc(),
+      m_acceptor(std::make_unique<tcp::acceptor>(m_ioc, tcp::endpoint(tcp::v4(), port))) 
 {
     
 
     try {
-        db_.Execute(
-            "CREATE TABLE IF NOT EXISTS test ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "name TEXT NOT NULL);"
+    db_.Execute(
+    "CREATE TABLE IF NOT EXISTS settings ("
+    "key TEXT PRIMARY KEY, "
+    "value TEXT);"
+    "CREATE TABLE IF NOT EXISTS logs ("
+    "id INTEGER PRIMARY KEY, "
+    "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
+    "type TEXT, "
+    "message TEXT);"
+    "CREATE TABLE IF NOT EXISTS exposure_history ("
+    "id INTEGER PRIMARY KEY, "
+    "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
+    "dose REAL, duration INTEGER, mode TEXT);"
         );
         jetfire27::Engine::Logging::Logger::GetInstance().Info("Initialized TestServer on port {}", port);
     } catch (const std::exception& e) {
         jetfire27::Engine::Logging::Logger::GetInstance().Error("DB error: {}", e.what());
         throw;
     }
+}
+
+void TestServer::SetupHardwareInterface(boost::asio::io_context& io) {
+    // Пример инициализации аппаратного интерфейса
+    XRayTubeController::instance().init(io, "COM11");
+}
+
+void TestServer::AddRoute(
+    const std::string& path,
+    std::function<void(const HttpRequest&, HttpResponse&)> handler
+) {
+    m_routes.emplace(path, handler);
 }
 
 void TestServer::Run() {
@@ -85,15 +106,17 @@ void TestServer::Run() {
 
 void TestServer::Stop() {
     boost::system::error_code ec;
-    m_acceptor.close(ec);
+    if (m_acceptor) {
+        m_acceptor->close(ec);
+    }
     m_ioc.stop();
 }
 
 TestServer::~TestServer() { Stop(); }
 
 void TestServer::Start(uint16_t port) {
-    m_acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(
-        m_ioc, boost::asio::ip::tcp::endpoint{boost::asio::ip::tcp::v4(), port});
+    m_acceptor = std::make_unique<tcp::acceptor>(
+        m_ioc, tcp::endpoint{tcp::v4(), port});
     Run();
 }
 
@@ -109,6 +132,31 @@ void TestServer::sendError(HttpResponse& res, const std::string& message) {
     error["error"] = message;
     res.body() = json::serialize(error);
     res.prepare_payload();
+}
+
+void TestServer::AddCommandHandlers() {
+    AddRoute("/api/config", [this](const HttpRequest& req, HttpResponse& res) {
+        if (req.method() == http::verb::get) {
+            std::string key = req.target().substr(12); // /api/config/key
+            db_.Execute("SELECT value FROM settings WHERE key = '" + key + "'", 
+                [](void* data, int argc, char** argv, char** colNames) {
+                    auto res = static_cast<HttpResponse*>(data);
+                    res->body() = argv[0];
+                    return 0;
+                }, &res);
+        } else if (req.method() == http::verb::post) {
+            auto j = json::parse(req.body());
+            db_.Execute(fmt::format("INSERT OR REPLACE INTO settings VALUES('{}','{}')", 
+                j.at("key").as_string().c_str(), 
+                j.at("value").as_string().c_str()));
+            sendSuccess(res);
+        }
+    });
+    
+    AddRoute("/api/exposure", 
+        [this](const HttpRequest& req, HttpResponse& res) {
+            // Управление экспозицией
+        });
 }
 
 

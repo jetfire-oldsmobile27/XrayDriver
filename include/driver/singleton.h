@@ -1,4 +1,3 @@
-// include/driver/singleton.h
 #pragma once
 
 template<typename T>

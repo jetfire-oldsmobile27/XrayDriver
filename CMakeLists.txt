@@ -6,8 +6,16 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(WIN32)
+add_definitions(-D_WIN32_WINNT=0x0601)
+    if(MSVC)
+        add_compile_options("/utf-8")
+    endif()
+endif()
+
 find_package(Boost 1.86 CONFIG REQUIRED COMPONENTS system filesystem json)
 find_package(SQLite3 CONFIG REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS dnn imgproc core)
 find_package(spdlog REQUIRED)
 
 if(APPLE)
@@ -33,6 +41,7 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         Boost::system
         Boost::filesystem
+        ${OpenCV_LIBS}
         Boost::json
         SQLite::SQLite3
         spdlog::spdlog
