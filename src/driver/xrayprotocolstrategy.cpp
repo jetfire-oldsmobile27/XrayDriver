@@ -1,51 +1,141 @@
 #include "driver/xrayprotocolstrategy.h"
-#include <boost/asio/serial_port.hpp>
+#include "service/logger.h"
+
+using namespace jetfire27::Engine::Logging;
+
+XRayProtocolStrategy::XRayProtocolStrategy(boost::asio::io_context &io, const std::string &port)
+    : port_(io), port_name_(port) {}
+
+bool XRayProtocolStrategy::test_connection()
+{
+    try
+    {
+        send_command("PING");
+        auto response = wait_response(500);
+        return response == "PONG";
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
 
 
-XRayProtocolStrategy::XRayProtocolStrategy(boost::asio::serial_port& port,
-                                            const std::string& port_name
-) 
-    : m_port(port), m_port_name(port_name) {}
 
-void XRayProtocolStrategy::initialize() {
-    m_port.set_option(boost::asio::serial_port::baud_rate(38400));
-    m_port.set_option(boost::asio::serial_port::character_size(8));
-    m_port.set_option(boost::asio::serial_port::parity(
+void XRayProtocolStrategy::initialize()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (port_.is_open())
+        port_.close();
+
+    port_.open(port_name_);
+    port_.set_option(boost::asio::serial_port::baud_rate(38400));
+    port_.set_option(boost::asio::serial_port::character_size(8));
+    port_.set_option(boost::asio::serial_port::parity(
         boost::asio::serial_port::parity::none));
-    m_port.set_option(boost::asio::serial_port::stop_bits(
+    port_.set_option(boost::asio::serial_port::stop_bits(
         boost::asio::serial_port::stop_bits::one));
+
+    // Начинаем асинхронное чтение
+    boost::asio::async_read_until(port_, read_buffer_, '\n',
+                                  [this](auto ec, auto size)
+                                  { read_handler(ec, size); });
+
+    Logger::GetInstance().Info("Port {} initialized", port_name_);
+}
+
+void XRayProtocolStrategy::set_voltage(uint16_t kv)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    send_command(fmt::format("SET_VOLTAGE {}", kv));
+    current_status_.voltage_kv = kv;
+}
+
+void XRayProtocolStrategy::start_exposure(uint32_t duration_ms)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (current_status_.voltage_kv < 10)
+        throw std::runtime_error("Voltage not set");
+
+    send_command(fmt::format("START_EXPOSURE {}", duration_ms));
+    current_status_.exposure_active = true;
+}
+
+void XRayProtocolStrategy::emergency_stop()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    send_command("EMERGENCY_STOP");
+    current_status_.exposure_active = false;
+}
+
+void XRayProtocolStrategy::send_command(const std::string &cmd)
+{
+    boost::asio::deadline_timer timer(port_.get_executor());
+    timer.expires_from_now(boost::posix_time::milliseconds(500));
     
-    if (!m_port.is_open()) {
-        throw std::runtime_error("COM port not opened!");
+    port_.async_write_some(boost::asio::buffer(cmd + "\r\n"),
+        [&](auto ec, auto) { 
+            timer.cancel();
+            if(ec) throw boost::system::system_error(ec);
+        });
+    
+    timer.async_wait([&](auto ec) {
+        if(!ec) port_.cancel();
+    });
+    Logger::GetInstance().Debug("Sent command: {}", cmd);
+}
+
+void XRayProtocolStrategy::read_handler(const boost::system::error_code &ec, size_t bytes)
+{
+    if (!ec)
+    {
+        std::istream is(&read_buffer_);
+        std::string response;
+        std::getline(is, response);
+
+        parse_response(response);
+
+        // Продолжаем чтение
+        boost::asio::async_read_until(port_, read_buffer_, '\n',
+                                      [this](auto ec, auto size)
+                                      { read_handler(ec, size); });
+    }
+    else
+    {
+        Logger::GetInstance().Error("Port read error: {}", ec.message());
     }
 }
 
-void XRayProtocolStrategy::set_power(float power) {
-    // Код для отправки команды регулировки мощности
-}
+void XRayProtocolStrategy::parse_response(const std::string &response)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    last_response_ = response;
+    response_condition_.notify_all();
 
-void XRayProtocolStrategy::process(const std::vector<uint8_t>& data) {
-    // Реализация обработки входящих данных
-    // Например, отправка на порт:
-    boost::asio::write(m_port, boost::asio::buffer(data));
-}
-
-void XRayProtocolStrategy::shutdown() {
-    if(m_port.is_open()) {
-        m_port.close();
+    if (response.find("OK") != std::string::npos)
+    {
+        Logger::GetInstance().Debug("Received OK");
+    }
+    else if (response.find("ERROR") != std::string::npos)
+    {
+        current_status_.error_state = true;
+        Logger::GetInstance().Error("Controller error: {}", response);
+    }
+    else if (response.find("OVERCURRENT") != std::string::npos)
+    {
+        emergency_stop();
+        Logger::GetInstance().Critical("Overcurrent detected!");
     }
 }
 
-void XRayProtocolStrategy::reset_connection() {
-    boost::system::error_code ec;
+std::string XRayProtocolStrategy::wait_response(int timeout_ms)
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+    response_condition_.wait_for(lock,
+                                 std::chrono::milliseconds(timeout_ms),
+                                 [this]
+                                 { return !last_response_.empty(); });
 
-    if (m_port.is_open())
-        m_port.close(ec);
-
-    m_port.open(m_port_name, ec);
-    if (ec) {
-        throw boost::system::system_error(ec, "Failed to reopen port " + m_port_name);
-    }
-
-    initialize();
+    return std::move(last_response_);
 }

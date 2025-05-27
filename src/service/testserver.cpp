@@ -10,103 +10,122 @@
 #include <fmt/format.h>
 #include <boost/asio/ip/tcp.hpp>
 
-namespace asio  = boost::asio;
+namespace asio = boost::asio;
 namespace beast = boost::beast;
-namespace http  = beast::http;
-namespace json  = boost::json;
-using   tcp    = asio::ip::tcp;
+namespace http = beast::http;
+namespace json = boost::json;
+using tcp = asio::ip::tcp;
 
-using jetfire27::Engine::Test::TestServer;
 using jetfire27::Engine::Test::TestRecord;
+using jetfire27::Engine::Test::TestServer;
 
-namespace fmt {
-template <>
-struct formatter<boost::asio::ip::tcp::endpoint> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-    
-    template <typename FormatContext>
-    auto format(const boost::asio::ip::tcp::endpoint& ep, FormatContext& ctx) const {
-        return format_to(ctx.out(), "{}:{}", ep.address().to_string(), ep.port());
-    }
-};
+namespace fmt
+{
+    template <>
+    struct formatter<boost::asio::ip::tcp::endpoint>
+    {
+        constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+        template <typename FormatContext>
+        auto format(const boost::asio::ip::tcp::endpoint &ep, FormatContext &ctx) const
+        {
+            return format_to(ctx.out(), "{}:{}", ep.address().to_string(), ep.port());
+        }
+    };
 } // namespace fmt
 
-namespace jetfire27::Engine::JsonParser {
-    template<>
-    std::string Parser<TestRecord>::Marshall(const TestRecord& o) {
+namespace jetfire27::Engine::JsonParser
+{
+    template <>
+    std::string Parser<TestRecord>::Marshall(const TestRecord &o)
+    {
         json::object j;
         j["id"] = o.id;
         j["name"] = o.name;
         return json::serialize(j);
     }
-    
-    template<>
-    TestRecord Parser<TestRecord>::UnMarshall(const std::string& s) {
+
+    template <>
+    TestRecord Parser<TestRecord>::UnMarshall(const std::string &s)
+    {
         auto o = json::parse(s).as_object();
         return {
             static_cast<int>(o["id"].as_int64()),
-            std::string(o["name"].as_string())
-        };
+            std::string(o["name"].as_string())};
     }
 }
 
-TestServer::TestServer(unsigned short port, const std::string& dbPath)
+TestServer::TestServer(unsigned short port, const std::string &dbPath)
     : port_(port),
       db_(dbPath),
       m_ioc(),
-      m_acceptor(std::make_unique<tcp::acceptor>(m_ioc, tcp::endpoint(tcp::v4(), port))) 
+      m_acceptor(std::make_unique<tcp::acceptor>(m_ioc, tcp::endpoint(tcp::v4(), port)))
 {
-    
 
-    try {
-    db_.Execute(
-    "CREATE TABLE IF NOT EXISTS settings ("
-    "key TEXT PRIMARY KEY, "
-    "value TEXT);"
-    "CREATE TABLE IF NOT EXISTS logs ("
-    "id INTEGER PRIMARY KEY, "
-    "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
-    "type TEXT, "
-    "message TEXT);"
-    "CREATE TABLE IF NOT EXISTS exposure_history ("
-    "id INTEGER PRIMARY KEY, "
-    "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
-    "dose REAL, duration INTEGER, mode TEXT);"
-        );
+    try
+    {
+        db_.Execute(
+            "CREATE TABLE xray_settings ("
+            "key TEXT PRIMARY KEY,"
+            "value TEXT);"
+            "CREATE TABLE IF NOT EXISTS exposure_log ("
+            "id INTEGER PRIMARY KEY,"
+            "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+            "voltage INTEGER,"
+            "current REAL,"
+            "duration INTEGER,"
+            "mode TEXT,"
+            "params TEXT);" // JSON с дополнительными параметрами
+
+            "CREATE TABLE IF NOT EXISTS system_events ("
+            "id INTEGER PRIMARY KEY,"
+            "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+            "event_type TEXT,"
+            "details TEXT);");
         jetfire27::Engine::Logging::Logger::GetInstance().Info("Initialized TestServer on port {}", port);
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         jetfire27::Engine::Logging::Logger::GetInstance().Error("DB error: {}", e.what());
         throw;
     }
 }
 
-void TestServer::SetupHardwareInterface(boost::asio::io_context& io) {
+void TestServer::SetupHardwareInterface(boost::asio::io_context &io)
+{
     // Пример инициализации аппаратного интерфейса
-    XRayTubeController::instance().init(io, "COM11");
+    XRayTubeController::instance().init(io);
 }
 
 void TestServer::AddRoute(
-    const std::string& path,
-    std::function<void(const HttpRequest&, HttpResponse&)> handler
-) {
+    const std::string &path,
+    std::function<void(const HttpRequest &, HttpResponse &)> handler)
+{
     m_routes.emplace(path, handler);
 }
 
-void TestServer::Run() {
-    try {
-        for (;;) {
+void TestServer::Run()
+{
+    try
+    {
+        for (;;)
+        {
             auto sock = boost::asio::ip::tcp::socket(m_ioc);
             m_acceptor->accept(sock); // Используем ->
             HandleSession(std::move(sock));
         }
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::fprintf(stderr, "Server stopped critical: %s\n", e.what());
     }
 }
 
-void TestServer::Stop() {
+void TestServer::Stop()
+{
     boost::system::error_code ec;
-    if (m_acceptor) {
+    if (m_acceptor)
+    {
         m_acceptor->close(ec);
     }
     m_ioc.stop();
@@ -114,19 +133,22 @@ void TestServer::Stop() {
 
 TestServer::~TestServer() { Stop(); }
 
-void TestServer::Start(uint16_t port) {
+void TestServer::Start(uint16_t port)
+{
     m_acceptor = std::make_unique<tcp::acceptor>(
         m_ioc, tcp::endpoint{tcp::v4(), port});
     Run();
 }
 
-void TestServer::sendSuccess(HttpResponse& res) {
+void TestServer::sendSuccess(HttpResponse &res)
+{
     res.result(http::status::ok);
     res.body() = R"({"status":"success"})";
     res.prepare_payload();
 }
 
-void TestServer::sendError(HttpResponse& res, const std::string& message) {
+void TestServer::sendError(HttpResponse &res, const std::string &message)
+{
     res.result(http::status::bad_request);
     json::object error;
     error["error"] = message;
@@ -134,35 +156,227 @@ void TestServer::sendError(HttpResponse& res, const std::string& message) {
     res.prepare_payload();
 }
 
-void TestServer::AddCommandHandlers() {
-    AddRoute("/api/config", [this](const HttpRequest& req, HttpResponse& res) {
-        if (req.method() == http::verb::get) {
-            std::string key = req.target().substr(12); // /api/config/key
-            db_.Execute("SELECT value FROM settings WHERE key = '" + key + "'", 
-                [](void* data, int argc, char** argv, char** colNames) {
-                    auto res = static_cast<HttpResponse*>(data);
-                    res->body() = argv[0];
-                    return 0;
-                }, &res);
-        } else if (req.method() == http::verb::post) {
-            auto j = json::parse(req.body());
-            db_.Execute(fmt::format("INSERT OR REPLACE INTO settings VALUES('{}','{}')", 
-                j.at("key").as_string().c_str(), 
-                j.at("value").as_string().c_str()));
+void TestServer::AddCommandHandlers()
+{
+    // Эндпоинт /api/stats
+    AddRoute("/api/stats", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        json::object stats;
+        db_.Execute(
+            "SELECT COUNT(*) FROM exposure_log",
+            [](void* data, int, char** vals, char**) {
+                *static_cast<json::object*>(data)["total_exposures"] = std::stoi(vals[0]);
+                return 0;
+            }, &stats);
+        
+        db_.Execute(
+            "SELECT MAX(timestamp) FROM system_events WHERE event_type='ERROR'",
+            [](void* data, int, char** vals, char**) {
+                if(vals[0]) 
+                    *static_cast<json::object*>(data)["last_error"] = vals[0];
+                return 0;
+            }, &stats);
+        
+        res.body() = json::serialize(stats); });
+
+    // Конфигурация
+    AddRoute("/api/config", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        try {
+            if(req.method() == http::verb::get) {
+                json::object config;
+                db_.Execute("SELECT key, value FROM xray_settings",
+                    [](void* data, int argc, char** argv, char** cols) {
+                        auto cfg = static_cast<json::object*>(data);
+                        (*cfg)[argv[0]] = argv[1];
+                        return 0;
+                    }, &config);
+                res.body() = json::serialize(config);
+            }
+            else if(req.method() == http::verb::post) {
+                auto j = json::parse(req.body());
+                for(const auto& item : j.as_object()) {
+                    db_.Execute(fmt::format(
+                        "INSERT OR REPLACE INTO xray_settings VALUES('{}','{}')",
+                        item.key_c_str(),
+                        item.value().as_string().c_str()));
+                }
+                sendSuccess(res);
+            }
+        } catch(const std::exception& e) {
+            sendError(res, e.what());
+        } });
+
+    // Экспозиция
+    AddRoute("/api/exposure/now", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        try {
+            auto params = json::parse(req.body());
+            
+            const uint16_t voltage = params.at("voltage").as_int64();
+            const float current = params.at("current").as_double();
+            const uint32_t duration = params.at("duration").as_int64();
+            const std::string mode = params.at("mode").as_string().c_str();
+            
+            // Валидация
+            if(voltage < 10 || voltage > 150)
+                throw std::runtime_error("Invalid voltage (10-150 kV)");
+            if(current < 0.01f || current > 0.4f)
+                throw std::runtime_error("Invalid current (0.01-0.4 mA)");
+            
+            // Режимы работы
+            if(mode == "manual") {
+                const int age = params.at("age").as_int64();
+                const std::string body_type = params.at("body_type").as_string().c_str();
+                const std::string projection = params.at("projection").as_string().c_str();
+                
+                if(age < 13) throw std::runtime_error("Age restriction");
+                // Дополнительные проверки...
+            }
+            
+            auto& controller = XRayTubeController::instance();
+            controller.set_voltage(voltage);
+            controller.set_current(current);
+            controller.start_exposure(duration);
+            
+            jetfire27::Engine::Logging::Logger::GetInstance().Info(
+                "Exposure started: {}kV, {}mA, {}ms, mode: {}",
+                voltage, current, duration, mode);
+            
             sendSuccess(res);
-        }
-    });
-    
-    AddRoute("/api/exposure", 
-        [this](const HttpRequest& req, HttpResponse& res) {
-            // Управление экспозицией
-        });
+            
+        } catch(const std::exception& e) {
+            sendError(res, e.what());
+        } });
+
+    // Аварийная остановка
+    AddRoute("/api/emergency_stop", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        XRayTubeController::instance().emergency_stop();
+        sendSuccess(res); });
+
+    // Статус системы
+    AddRoute("/api/status", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        auto status = XRayTubeController::instance().get_status();
+        json::object jstatus;
+        jstatus["voltage_kv"] = status.voltage_kv;
+        jstatus["current_ma"] = status.current_ma;
+        jstatus["exposure_active"] = status.exposure_active;
+        jstatus["filament_on"] = status.filament_on;
+        jstatus["error_state"] = status.error_state;
+        res.body() = json::serialize(jstatus); });
+
+    // Логи экспозиции
+    AddRoute("/api/logs/exposure", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        try {
+            int limit = 100;
+            int offset = 0;
+            
+            // Парсинг параметров запроса
+            if(auto param = req.find("limit"); param != req.end())
+                limit = std::stoi(param->value());
+            
+            if(auto param = req.find("offset"); param != req.end())
+                offset = std::stoi(param->value());
+
+            json::array logs;
+            db_.Execute(fmt::format(
+                "SELECT timestamp, voltage, current, duration, mode "
+                "FROM exposure_log ORDER BY id DESC LIMIT {} OFFSET {}", 
+                limit, offset),
+                [](void* data, int argc, char** argv, char** cols) {
+                    auto arr = static_cast<json::array*>(data);
+                    json::object log;
+                    log["timestamp"] = argv[0];
+                    log["voltage"] = std::stoi(argv[1]);
+                    log["current"] = std::stof(argv[2]);
+                    log["duration"] = std::stoi(argv[3]);
+                    log["mode"] = argv[4];
+                    arr->push_back(log);
+                    return 0;
+                }, &logs);
+
+            res.body() = json::serialize(logs);
+        } catch(const std::exception& e) {
+            sendError(res, e.what());
+        } });
+
+    // Системные логи
+    AddRoute("/api/logs/system", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        try {
+            std::string type_filter = "%";
+            if(auto param = req.find("type"); param != req.end())
+                type_filter = param->value();
+
+            json::array logs;
+            db_.Execute(fmt::format(
+                "SELECT timestamp, event_type, details "
+                "FROM system_events WHERE event_type LIKE '{}' "
+                "ORDER BY id DESC LIMIT 100", type_filter),
+                [](void* data, int argc, char** argv, char** cols) {
+                    auto arr = static_cast<json::array*>(data);
+                    json::object log;
+                    log["timestamp"] = argv[0];
+                    log["type"] = argv[1];
+                    log["details"] = argv[2];
+                    arr->push_back(log);
+                    return 0;
+                }, &logs);
+
+            res.body() = json::serialize(logs);
+        } catch(const std::exception& e) {
+            sendError(res, e.what());
+        } });
+
+    // Перезапуск драйвера
+    AddRoute("/api/driver/restart", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        try {
+            if(XRayTubeController::instance().is_exposure_active())
+                throw std::runtime_error("Cannot restart during exposure");
+
+            XRayTubeController::instance().restart_driver();
+            
+            // Логируем событие
+            db_.Execute(fmt::format(
+                "INSERT INTO system_events (event_type, details) VALUES "
+                "('DRIVER_RESTART', 'Driver restarted at {}')",
+                std::time(nullptr)));
+            
+            sendSuccess(res);
+        } catch(const std::exception& e) {
+            sendError(res, e.what());
+        } });
+
+    // Статус драйвера
+    AddRoute("/api/driver/status", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        json::object status;
+        status["connected"] = XRayTubeController::instance().is_connected();
+        status["exposure_active"] = XRayTubeController::instance().is_exposure_active();
+        status["last_error"] = XRayTubeController::instance().last_error();
+        res.body() = json::serialize(status); });
+
+    // Проверка соединения
+    AddRoute("/api/connection/test", [this](const HttpRequest &req, HttpResponse &res)
+             {
+        try {
+            bool success = XRayTubeController::instance().test_connection();
+            json::object response;
+            response["status"] = success ? "OK" : "ERROR";
+            response["response_time"] = XRayTubeController::instance().last_ping_time();
+            res.body() = json::serialize(response);
+        } catch(const std::exception& e) {
+            sendError(res, e.what());
+        } });
 }
 
-
-
-void TestServer::HandleSession(boost::asio::ip::tcp::socket socket) {
-    const auto& ep = socket.remote_endpoint();
+void TestServer::HandleSession(boost::asio::ip::tcp::socket socket)
+{
+    const auto &ep = socket.remote_endpoint();
     jetfire27::Engine::Logging::Logger::GetInstance().Info("New connection from {}:{}", ep.address().to_string(), ep.port());
     beast::tcp_stream stream(std::move(socket));
     beast::flat_buffer buf;
@@ -173,31 +387,39 @@ void TestServer::HandleSession(boost::asio::ip::tcp::socket socket) {
     res.set(http::field::content_type, "application/json");
     res.keep_alive(req.keep_alive());
 
-    if (req.method() == http::verb::get && req.target() == "/items") {
+    if (req.method() == http::verb::get && req.target() == "/items")
+    {
         // C-style callback for sqlite3_exec
-        struct CB { static int f(void* d,int c,char**v,char**){
-            auto vec = static_cast<std::vector<TestRecord>*>(d);
-            vec->push_back({ std::stoi(v[0]), v[1] });
-            return 0;
-        }};
+        struct CB
+        {
+            static int f(void *d, int c, char **v, char **)
+            {
+                auto vec = static_cast<std::vector<TestRecord> *>(d);
+                vec->push_back({std::stoi(v[0]), v[1]});
+                return 0;
+            }
+        };
         std::vector<TestRecord> vec;
         db_.Execute("SELECT id,name FROM test;", CB::f, &vec);
 
         // avoid match with:contentReference[oaicite:11]{index=11}
         jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
         json::array arr;
-        for (auto& r : vec) {
+        for (auto &r : vec)
+        {
             arr.push_back(json::parse(parser.Marshall(r)));
         }
         res.body() = json::serialize(arr);
-
-    } else if (req.method() == http::verb::post && req.target() == "/items") {
+    }
+    else if (req.method() == http::verb::post && req.target() == "/items")
+    {
         jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
         auto rec = parser.UnMarshall(req.body());
         db_.Execute("INSERT INTO test(name) VALUES('" + rec.name + "');");
         res.body() = R"({"status":"ok"})";
-
-    } else {
+    }
+    else
+    {
         res.result(http::status::bad_request);
         res.body() = R"({"error":"bad request"})";
     }

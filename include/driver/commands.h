@@ -12,12 +12,8 @@ class SetVoltageCommand : public Command {
 public:
     SetVoltageCommand(uint16_t v) : voltage(v) {}
     
-    void execute(IProtocolStrategy& proto) override { 
-        if (auto xray_proto = dynamic_cast<XRayProtocolStrategy*>(&proto)) {
-            xray_proto->set_voltage(voltage);
-        } else {
-            throw std::runtime_error("Invalid protocol type!");
-        }
+    void execute(IProtocolStrategy& proto) override {
+        proto.set_voltage(voltage);
     }
 
 private:
@@ -34,16 +30,4 @@ public:
 
 private:
     uint32_t duration;
-};
-
-class SetPowerCommand : public Command {
-public:
-    SetPowerCommand(float p) : power(p) {}
-    
-    void execute(IProtocolStrategy& proto) override {
-        dynamic_cast<XRayProtocolStrategy&>(proto).set_power(power);
-    }
-
-private:
-    float power;
 };

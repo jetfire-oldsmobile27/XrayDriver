@@ -22,8 +22,7 @@ void SQLiteDB::Execute(const std::string& sql) {
 }
 
 void SQLiteDB::Execute(const std::string& sql,
-                       int (*callback)(void*,int,char**,char**),
-                       void* data)
+                       int (*callback)(void*,int,char**,char**), void* data)
 {
     char* err = nullptr;
     if (sqlite3_exec(db, sql.c_str(), callback, data, &err) != SQLITE_OK) {
