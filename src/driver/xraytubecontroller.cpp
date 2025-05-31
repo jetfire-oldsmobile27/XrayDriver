@@ -6,26 +6,48 @@
 void XRayTubeController::init(boost::asio::io_context &io,
                               std::shared_ptr<jetfire27::Engine::DB::SQLiteDB> db)
 {
-    auto& log = jetfire27::Engine::Logging::Logger::GetInstance();
+    auto &log = jetfire27::Engine::Logging::Logger::GetInstance();
     log.Info("Initializing X-Ray controller");
-    try {
+    try
+    {
         std::string port;
 
         db->Execute("SELECT value FROM xray_settings WHERE key='com_port'", [](void *data, int, char **vals, char **)
-                   {
-            if(vals[0]) *static_cast<std::string*>(data) = vals[0];
-            return 0; }, &port);
+                    {
+                if(vals[0]) *static_cast<std::string*>(data) = vals[0];
+                return 0; }, &port);
+
+        if (port.empty())
+        {
+#ifdef _WIN32
+            port = "COM1"; // Значение по умолчанию для Windows
+#else
+            port = "/dev/ttyS0"; // Значение по умолчанию для Linux
+#endif
+            log.Info("Using default COM port: {}", port);
+        }
+
+        // Проверка корректности имени порта для Windows
+#ifdef _WIN32
+        if (port.find("COM") != 0 || port.size() < 4)
+        {
+            throw std::runtime_error("Invalid COM port format. Use COMx format");
+        }
+#endif
 
         protocol_ = std::make_unique<XRayProtocolStrategy>(io, port);
         protocol_->initialize();
-    } 
-    catch(const std::exception &e) {
-        log.Error("X-Ray controller failed: {}", e.what());
     }
-    catch(...) {
+    catch (const std::exception &e)
+    {
+        log.Error("X-Ray controller failed: {}", e.what());
+        throw;
+    }
+    catch (...)
+    {
         throw std::runtime_error("X-Ray controller unhandled throw");
     }
-    log.Debug("X-Ray controller initialized success");
+    log.Info("X-Ray controller initialized success");
 }
 
 void XRayTubeController::emergency_stop()

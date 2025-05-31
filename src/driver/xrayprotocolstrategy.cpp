@@ -20,7 +20,8 @@ bool XRayProtocolStrategy::test_connection()
     }
 }
 
-void XRayProtocolStrategy::process(const std::vector<uint8_t>& data) {
+void XRayProtocolStrategy::process(const std::vector<uint8_t> &data)
+{
     // Здесь должна быть логика обработки данных
     // Пока оставляем пустым
 }
@@ -32,33 +33,49 @@ void XRayProtocolStrategy::initialize()
     if (port_.is_open())
         port_.close();
 
-    port_.open(port_name_);
-    port_.set_option(boost::asio::serial_port::baud_rate(38400));
-    port_.set_option(boost::asio::serial_port::character_size(8));
-    port_.set_option(boost::asio::serial_port::parity(
-        boost::asio::serial_port::parity::none));
-    port_.set_option(boost::asio::serial_port::stop_bits(
-        boost::asio::serial_port::stop_bits::one));
+    try
+    {
+        port_.open(port_name_);
+        port_.set_option(boost::asio::serial_port::baud_rate(38400));
+        port_.set_option(boost::asio::serial_port::character_size(8));
+        port_.set_option(boost::asio::serial_port::parity(
+            boost::asio::serial_port::parity::none));
+        port_.set_option(boost::asio::serial_port::stop_bits(
+            boost::asio::serial_port::stop_bits::one));
 
-    // Начинаем асинхронное чтение
-    boost::asio::async_read_until(port_, read_buffer_, '\n',
-                                  [this](auto ec, auto size)
-                                  { read_handler(ec, size); });
+        boost::asio::async_read_until(port_, read_buffer_, '\n',
+                                      [this](auto ec, auto size)
+                                      { read_handler(ec, size); });
 
-    Logger::GetInstance().Info("Port {} initialized", port_name_);
+        Logger::GetInstance().Info("Port {} initialized", port_name_);
+    }
+    catch (const boost::system::system_error &e)
+    {
+        std::string msg = "Failed to open port '" + port_name_ + "': ";
+        msg += e.what();
+
+#ifdef _WIN32
+        msg += "\nCheck COM port format: use 'COMx' (e.g., COM3)";
+#endif
+
+        throw std::runtime_error(msg);
+    }
 }
 
-void XRayProtocolStrategy::shutdown() {
+void XRayProtocolStrategy::shutdown()
+{
     std::lock_guard<std::mutex> lock(mutex_);
-    if (port_.is_open()) {
+    if (port_.is_open())
+    {
         port_.close();
     }
-    current_status_ = Status{}; 
+    current_status_ = Status{};
 }
 
-void XRayProtocolStrategy::reset_connection() {
+void XRayProtocolStrategy::reset_connection()
+{
     shutdown();
-    initialize(); 
+    initialize();
 }
 
 void XRayProtocolStrategy::set_voltage(uint16_t kv)
@@ -158,13 +175,13 @@ std::string XRayProtocolStrategy::wait_response(int timeout_ms)
     return std::move(last_response_);
 }
 
-IProtocolStrategy::Status XRayProtocolStrategy::get_status() const 
+IProtocolStrategy::Status XRayProtocolStrategy::get_status() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return {
         current_status_.voltage_kv,
         current_status_.current_ma,
         current_status_.exposure_active,
-        current_status_.filament_on,  
+        current_status_.filament_on,
         current_status_.error_state};
 }

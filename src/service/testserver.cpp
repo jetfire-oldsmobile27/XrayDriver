@@ -66,7 +66,7 @@ TestServer::TestServer(unsigned short port, const std::string &dbPath)
     {
         db_ = std::make_shared<DB::SQLiteDB>(dbPath);
         db_->Execute(
-            "CREATE TABLE xray_settings ("
+            "CREATE TABLE IF NOT EXISTS xray_settings ("
             "key TEXT PRIMARY KEY,"
             "value TEXT);"
             "CREATE TABLE IF NOT EXISTS exposure_log ("
@@ -83,6 +83,16 @@ TestServer::TestServer(unsigned short port, const std::string &dbPath)
             "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
             "event_type TEXT,"
             "details TEXT);");
+#ifdef _WIN32
+        const char *default_com = "COM1";
+#else
+        const char *default_com = "/dev/ttyS0";
+#endif
+
+        db_->Execute(
+            "INSERT OR IGNORE INTO xray_settings (key, value) "
+            "VALUES ('com_port', '" +
+            std::string(default_com) + "')");
         jetfire27::Engine::Logging::Logger::GetInstance().Info("Initialized TestServer on port {}", port);
     }
     catch (const std::exception &e)
@@ -157,7 +167,7 @@ void TestServer::Stop()
     {
         m_acceptor->close(ec);
     }
-    
+
     m_ioc.stop();
 }
 
@@ -248,6 +258,14 @@ void TestServer::AddCommandHandlers()
             else if(req.method() == http::verb::post) {
                 auto j = json::parse(req.body());
                 for(const auto& item : j.as_object()) {
+                    if (item.key() == "com_port") {
+                std::string port = item.value().as_string().c_str();
+#ifdef _WIN32
+                if (port.find("COM") != 0 || port.size() < 4) {
+                    throw std::runtime_error("Invalid COM port format. Use COMx");
+                }
+#endif
+            }
                     db_->Execute(fmt::format(
                         "INSERT OR REPLACE INTO xray_settings VALUES('{}','{}')",
                         item.key_c_str(),
