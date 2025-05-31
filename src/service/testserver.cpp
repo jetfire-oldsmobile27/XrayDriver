@@ -57,14 +57,15 @@ namespace jetfire27::Engine::JsonParser
 
 TestServer::TestServer(unsigned short port, const std::string &dbPath)
     : port_(port),
-      db_(dbPath),
+
       m_ioc(),
       m_acceptor(std::make_unique<tcp::acceptor>(m_ioc, tcp::endpoint(tcp::v4(), port)))
 {
-
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Creating server on port {}", port);
     try
     {
-        db_.Execute(
+        db_ = std::make_shared<DB::SQLiteDB>(dbPath);
+        db_->Execute(
             "CREATE TABLE xray_settings ("
             "key TEXT PRIMARY KEY,"
             "value TEXT);"
@@ -89,12 +90,20 @@ TestServer::TestServer(unsigned short port, const std::string &dbPath)
         jetfire27::Engine::Logging::Logger::GetInstance().Error("DB error: {}", e.what());
         throw;
     }
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("server on port {} created success", port);
 }
 
 void TestServer::SetupHardwareInterface(boost::asio::io_context &io)
 {
-    // Пример инициализации аппаратного интерфейса
-    XRayTubeController::instance().init(io);
+    try
+    {
+        XRayTubeController::instance().init(io, get_database());
+    }
+    catch (const std::exception &e)
+    {
+        Logging::Logger::GetInstance().Critical("Hardware init failed: {}", e.what());
+        throw;
+    }
 }
 
 void TestServer::AddRoute(
@@ -102,6 +111,26 @@ void TestServer::AddRoute(
     std::function<void(const HttpRequest &, HttpResponse &)> handler)
 {
     m_routes.emplace(path, handler);
+}
+
+void TestServer::start_accept()
+{
+    auto socket = std::make_shared<boost::asio::ip::tcp::socket>(m_ioc);
+    m_acceptor->async_accept(*socket,
+                             [this, socket](const boost::system::error_code &ec)
+                             {
+                                 handle_accept(ec, socket);
+                             });
+}
+
+void TestServer::handle_accept(const boost::system::error_code &ec,
+                               std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    if (!ec)
+    {
+        std::thread(&TestServer::HandleSession, this, std::move(*socket)).detach();
+    }
+    start_accept();
 }
 
 void TestServer::Run()
@@ -117,7 +146,7 @@ void TestServer::Run()
     }
     catch (const std::exception &e)
     {
-        std::fprintf(stderr, "Server stopped critical: %s\n", e.what());
+        Logging::Logger::GetInstance().Critical("Server stopped critical: {}", e.what());
     }
 }
 
@@ -128,15 +157,38 @@ void TestServer::Stop()
     {
         m_acceptor->close(ec);
     }
+    
     m_ioc.stop();
+}
+
+std::shared_ptr<jetfire27::Engine::DB::SQLiteDB> TestServer::get_database()
+{
+    return std::atomic_load(&db_);
+}
+
+void TestServer::update_database(std::shared_ptr<DB::SQLiteDB> new_db)
+{
+    std::atomic_store(&db_, new_db);
 }
 
 TestServer::~TestServer() { Stop(); }
 
 void TestServer::Start(uint16_t port)
 {
-    m_acceptor = std::make_unique<tcp::acceptor>(
-        m_ioc, tcp::endpoint{tcp::v4(), port});
+    try
+    {
+        tcp::endpoint endpoint(tcp::v4(), port);
+        m_acceptor->open(endpoint.protocol());
+        m_acceptor->set_option(tcp::acceptor::reuse_address(true));
+        m_acceptor->bind(endpoint);
+        m_acceptor->listen();
+        jetfire27::Engine::Logging::Logger::GetInstance().Info("Server listening on port {}", port);
+    }
+    catch (const boost::system::system_error &e)
+    {
+        jetfire27::Engine::Logging::Logger::GetInstance().Critical("Port {} unavailable: {}", port, e.what());
+        throw;
+    }
     Run();
 }
 
@@ -162,18 +214,18 @@ void TestServer::AddCommandHandlers()
     AddRoute("/api/stats", [this](const HttpRequest &req, HttpResponse &res)
              {
         json::object stats;
-        db_.Execute(
+        db_->Execute(
             "SELECT COUNT(*) FROM exposure_log",
             [](void* data, int, char** vals, char**) {
-                *static_cast<json::object*>(data)["total_exposures"] = std::stoi(vals[0]);
+                (*static_cast<json::object*>(data))["total_exposures"] = std::stoi(vals[0]);
                 return 0;
             }, &stats);
         
-        db_.Execute(
+        db_->Execute(
             "SELECT MAX(timestamp) FROM system_events WHERE event_type='ERROR'",
             [](void* data, int, char** vals, char**) {
                 if(vals[0]) 
-                    *static_cast<json::object*>(data)["last_error"] = vals[0];
+                    (*static_cast<json::object*>(data))["last_error"] = vals[0];
                 return 0;
             }, &stats);
         
@@ -185,7 +237,7 @@ void TestServer::AddCommandHandlers()
         try {
             if(req.method() == http::verb::get) {
                 json::object config;
-                db_.Execute("SELECT key, value FROM xray_settings",
+                db_->Execute("SELECT key, value FROM xray_settings",
                     [](void* data, int argc, char** argv, char** cols) {
                         auto cfg = static_cast<json::object*>(data);
                         (*cfg)[argv[0]] = argv[1];
@@ -196,7 +248,7 @@ void TestServer::AddCommandHandlers()
             else if(req.method() == http::verb::post) {
                 auto j = json::parse(req.body());
                 for(const auto& item : j.as_object()) {
-                    db_.Execute(fmt::format(
+                    db_->Execute(fmt::format(
                         "INSERT OR REPLACE INTO xray_settings VALUES('{}','{}')",
                         item.key_c_str(),
                         item.value().as_string().c_str()));
@@ -282,7 +334,7 @@ void TestServer::AddCommandHandlers()
                 offset = std::stoi(param->value());
 
             json::array logs;
-            db_.Execute(fmt::format(
+            db_->Execute(fmt::format(
                 "SELECT timestamp, voltage, current, duration, mode "
                 "FROM exposure_log ORDER BY id DESC LIMIT {} OFFSET {}", 
                 limit, offset),
@@ -312,7 +364,7 @@ void TestServer::AddCommandHandlers()
                 type_filter = param->value();
 
             json::array logs;
-            db_.Execute(fmt::format(
+            db_->Execute(fmt::format(
                 "SELECT timestamp, event_type, details "
                 "FROM system_events WHERE event_type LIKE '{}' "
                 "ORDER BY id DESC LIMIT 100", type_filter),
@@ -341,7 +393,7 @@ void TestServer::AddCommandHandlers()
             XRayTubeController::instance().restart_driver();
             
             // Логируем событие
-            db_.Execute(fmt::format(
+            db_->Execute(fmt::format(
                 "INSERT INTO system_events (event_type, details) VALUES "
                 "('DRIVER_RESTART', 'Driver restarted at {}')",
                 std::time(nullptr)));
@@ -367,7 +419,7 @@ void TestServer::AddCommandHandlers()
             bool success = XRayTubeController::instance().test_connection();
             json::object response;
             response["status"] = success ? "OK" : "ERROR";
-            response["response_time"] = XRayTubeController::instance().last_ping_time();
+            response["response_time"] = XRayTubeController::instance().last_ping_time().count();
             res.body() = json::serialize(response);
         } catch(const std::exception& e) {
             sendError(res, e.what());
@@ -376,55 +428,62 @@ void TestServer::AddCommandHandlers()
 
 void TestServer::HandleSession(boost::asio::ip::tcp::socket socket)
 {
-    const auto &ep = socket.remote_endpoint();
-    jetfire27::Engine::Logging::Logger::GetInstance().Info("New connection from {}:{}", ep.address().to_string(), ep.port());
-    beast::tcp_stream stream(std::move(socket));
-    beast::flat_buffer buf;
-    http::request<http::string_body> req;
-    http::read(stream, buf, req);
-
-    http::response<http::string_body> res{http::status::ok, req.version()};
-    res.set(http::field::content_type, "application/json");
-    res.keep_alive(req.keep_alive());
-
-    if (req.method() == http::verb::get && req.target() == "/items")
+    try
     {
-        // C-style callback for sqlite3_exec
-        struct CB
+        const auto &ep = socket.remote_endpoint();
+        jetfire27::Engine::Logging::Logger::GetInstance().Info("New connection from {}:{}", ep.address().to_string(), ep.port());
+        beast::tcp_stream stream(std::move(socket));
+        beast::flat_buffer buf;
+        http::request<http::string_body> req;
+        http::read(stream, buf, req);
+
+        http::response<http::string_body> res{http::status::ok, req.version()};
+        res.set(http::field::content_type, "application/json");
+        res.keep_alive(req.keep_alive());
+
+        if (req.method() == http::verb::get && req.target() == "/items")
         {
-            static int f(void *d, int c, char **v, char **)
+            // C-style callback for sqlite3_exec
+            struct CB
             {
-                auto vec = static_cast<std::vector<TestRecord> *>(d);
-                vec->push_back({std::stoi(v[0]), v[1]});
-                return 0;
+                static int f(void *d, int c, char **v, char **)
+                {
+                    auto vec = static_cast<std::vector<TestRecord> *>(d);
+                    vec->push_back({std::stoi(v[0]), v[1]});
+                    return 0;
+                }
+            };
+            std::vector<TestRecord> vec;
+            db_->Execute("SELECT id,name FROM test;", CB::f, &vec);
+
+            // avoid match with:contentReference[oaicite:11]{index=11}
+            jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
+            json::array arr;
+            for (auto &r : vec)
+            {
+                arr.push_back(json::parse(parser.Marshall(r)));
             }
-        };
-        std::vector<TestRecord> vec;
-        db_.Execute("SELECT id,name FROM test;", CB::f, &vec);
-
-        // avoid match with:contentReference[oaicite:11]{index=11}
-        jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
-        json::array arr;
-        for (auto &r : vec)
-        {
-            arr.push_back(json::parse(parser.Marshall(r)));
+            res.body() = json::serialize(arr);
         }
-        res.body() = json::serialize(arr);
-    }
-    else if (req.method() == http::verb::post && req.target() == "/items")
-    {
-        jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
-        auto rec = parser.UnMarshall(req.body());
-        db_.Execute("INSERT INTO test(name) VALUES('" + rec.name + "');");
-        res.body() = R"({"status":"ok"})";
-    }
-    else
-    {
-        res.result(http::status::bad_request);
-        res.body() = R"({"error":"bad request"})";
-    }
+        else if (req.method() == http::verb::post && req.target() == "/items")
+        {
+            jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
+            auto rec = parser.UnMarshall(req.body());
+            db_->Execute("INSERT INTO test(name) VALUES('" + rec.name + "');");
+            res.body() = R"({"status":"ok"})";
+        }
+        else
+        {
+            res.result(http::status::bad_request);
+            res.body() = R"({"error":"bad request"})";
+        }
 
-    res.prepare_payload();
-    http::write(stream, res);
-    stream.socket().shutdown(tcp::socket::shutdown_send);
+        res.prepare_payload();
+        http::write(stream, res);
+        stream.socket().shutdown(tcp::socket::shutdown_send);
+    }
+    catch (const std::exception &e)
+    {
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Session error: {}", e.what());
+    }
 }

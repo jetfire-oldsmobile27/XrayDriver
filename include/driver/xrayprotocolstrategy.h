@@ -34,11 +34,14 @@ public:
         bool filament_on;
         bool error_state;
     };
+
+    IProtocolStrategy::Status get_status() const override;
     
     void restart_driver();
     void send_command(const std::string& cmd);
     void read_handler(const boost::system::error_code& ec, size_t bytes);
     void parse_response(const std::string& response);
+    bool is_connected() const { return port_.is_open(); }
 
 private:
     

@@ -4,7 +4,7 @@
 using namespace jetfire27::Engine::Logging;
 
 XRayProtocolStrategy::XRayProtocolStrategy(boost::asio::io_context &io, const std::string &port)
-    : port_(io), port_name_(port) {}
+    : port_(io), port_name_(port), current_status_{} {}
 
 bool XRayProtocolStrategy::test_connection()
 {
@@ -20,7 +20,10 @@ bool XRayProtocolStrategy::test_connection()
     }
 }
 
-
+void XRayProtocolStrategy::process(const std::vector<uint8_t>& data) {
+    // Здесь должна быть логика обработки данных
+    // Пока оставляем пустым
+}
 
 void XRayProtocolStrategy::initialize()
 {
@@ -43,6 +46,19 @@ void XRayProtocolStrategy::initialize()
                                   { read_handler(ec, size); });
 
     Logger::GetInstance().Info("Port {} initialized", port_name_);
+}
+
+void XRayProtocolStrategy::shutdown() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (port_.is_open()) {
+        port_.close();
+    }
+    current_status_ = Status{}; 
+}
+
+void XRayProtocolStrategy::reset_connection() {
+    shutdown();
+    initialize(); 
 }
 
 void XRayProtocolStrategy::set_voltage(uint16_t kv)
@@ -73,16 +89,18 @@ void XRayProtocolStrategy::send_command(const std::string &cmd)
 {
     boost::asio::deadline_timer timer(port_.get_executor());
     timer.expires_from_now(boost::posix_time::milliseconds(500));
-    
+
     port_.async_write_some(boost::asio::buffer(cmd + "\r\n"),
-        [&](auto ec, auto) { 
-            timer.cancel();
-            if(ec) throw boost::system::system_error(ec);
-        });
-    
-    timer.async_wait([&](auto ec) {
-        if(!ec) port_.cancel();
-    });
+                           [&](auto ec, auto)
+                           {
+                               timer.cancel();
+                               if (ec)
+                                   throw boost::system::system_error(ec);
+                           });
+
+    timer.async_wait([&](auto ec)
+                     {
+        if(!ec) port_.cancel(); });
     Logger::GetInstance().Debug("Sent command: {}", cmd);
 }
 
@@ -138,4 +156,15 @@ std::string XRayProtocolStrategy::wait_response(int timeout_ms)
                                  { return !last_response_.empty(); });
 
     return std::move(last_response_);
+}
+
+IProtocolStrategy::Status XRayProtocolStrategy::get_status() const 
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return {
+        current_status_.voltage_kv,
+        current_status_.current_ma,
+        current_status_.exposure_active,
+        current_status_.filament_on,  
+        current_status_.error_state};
 }

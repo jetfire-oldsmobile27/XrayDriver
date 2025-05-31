@@ -4,8 +4,11 @@
 using namespace jetfire27::Engine::DB;
 
 SQLiteDB::SQLiteDB(const std::string& dbPath) {
-    if (sqlite3_open(dbPath.c_str(), &db) != SQLITE_OK)
-        throw std::runtime_error("Cannot open or create DB");
+    if (sqlite3_open(dbPath.c_str(), &db) != SQLITE_OK) {
+        std::string err = sqlite3_errmsg(db);
+        throw std::runtime_error("Cannot open DB: " + err);
+    }
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Database opened: {}", dbPath);
 }
 
 SQLiteDB::~SQLiteDB() {

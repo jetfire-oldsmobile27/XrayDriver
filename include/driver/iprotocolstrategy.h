@@ -21,6 +21,7 @@ public:
         uint16_t voltage_kv;
         float current_ma;
         bool exposure_active;
+        bool filament_on; 
         bool error_state;
     } get_status() const = 0;
 };
