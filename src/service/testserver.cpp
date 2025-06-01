@@ -93,6 +93,7 @@ TestServer::TestServer(unsigned short port, const std::string &dbPath)
             "INSERT OR IGNORE INTO xray_settings (key, value) "
             "VALUES ('com_port', '" +
             std::string(default_com) + "')");
+        AddCommandHandlers();
         jetfire27::Engine::Logging::Logger::GetInstance().Info("Initialized TestServer on port {}", port);
     }
     catch (const std::exception &e)
@@ -150,7 +151,7 @@ void TestServer::Run()
         for (;;)
         {
             auto sock = boost::asio::ip::tcp::socket(m_ioc);
-            m_acceptor->accept(sock); // Используем ->
+            m_acceptor->accept(sock); 
             HandleSession(std::move(sock));
         }
     }
@@ -280,44 +281,55 @@ void TestServer::AddCommandHandlers()
     // Экспозиция
     AddRoute("/api/exposure/now", [this](const HttpRequest &req, HttpResponse &res)
              {
-        try {
-            auto params = json::parse(req.body());
+    try {
+        auto params = json::parse(req.body());
+        const uint32_t duration = params.at("duration").as_int64();
+        const std::string mode = params.at("mode").as_string().c_str();
+        
+        // Проверка режима
+        if (mode != "test" && mode != "standard" && mode != "pulsed")
+            throw std::runtime_error("Invalid exposure mode");
+        
+        // Запуск экспозиции
+        XRayTubeController::instance().start_exposure(duration);
+        
+        jetfire27::Engine::Logging::Logger::GetInstance().Info(
+            "Exposure started: {}ms, mode: {}", duration, mode);
+        
+        sendSuccess(res);
+    } catch(const std::exception& e) {
+        sendError(res, e.what());
+    } });
+
+    AddRoute("/api/voltage", [this](const HttpRequest &req, HttpResponse &res)
+             {
+    try {
+        auto params = json::parse(req.body());
+        const uint16_t voltage = params.at("voltage").as_int64();
+        
+        if (voltage < 10 || voltage > 150)
+            throw std::runtime_error("Invalid voltage (10-150 kV)");
             
-            const uint16_t voltage = params.at("voltage").as_int64();
-            const float current = params.at("current").as_double();
-            const uint32_t duration = params.at("duration").as_int64();
-            const std::string mode = params.at("mode").as_string().c_str();
+        XRayTubeController::instance().set_voltage(voltage);
+        sendSuccess(res);
+    } catch(const std::exception& e) {
+        sendError(res, e.what());
+    } });
+
+    AddRoute("/api/current", [this](const HttpRequest &req, HttpResponse &res)
+             {
+    try {
+        auto params = json::parse(req.body());
+        const float current = params.at("current").as_double();
+        
+        if (current < 0.01f || current > 0.4f)
+            throw std::runtime_error("Invalid current (0.01-0.4 mA)");
             
-            // Валидация
-            if(voltage < 10 || voltage > 150)
-                throw std::runtime_error("Invalid voltage (10-150 kV)");
-            if(current < 0.01f || current > 0.4f)
-                throw std::runtime_error("Invalid current (0.01-0.4 mA)");
-            
-            // Режимы работы
-            if(mode == "manual") {
-                const int age = params.at("age").as_int64();
-                const std::string body_type = params.at("body_type").as_string().c_str();
-                const std::string projection = params.at("projection").as_string().c_str();
-                
-                if(age < 13) throw std::runtime_error("Age restriction");
-                // Дополнительные проверки...
-            }
-            
-            auto& controller = XRayTubeController::instance();
-            controller.set_voltage(voltage);
-            controller.set_current(current);
-            controller.start_exposure(duration);
-            
-            jetfire27::Engine::Logging::Logger::GetInstance().Info(
-                "Exposure started: {}kV, {}mA, {}ms, mode: {}",
-                voltage, current, duration, mode);
-            
-            sendSuccess(res);
-            
-        } catch(const std::exception& e) {
-            sendError(res, e.what());
-        } });
+        XRayTubeController::instance().set_current(current);
+        sendSuccess(res);
+    } catch(const std::exception& e) {
+        sendError(res, e.what());
+    } });
 
     // Аварийная остановка
     AddRoute("/api/emergency_stop", [this](const HttpRequest &req, HttpResponse &res)
@@ -328,6 +340,7 @@ void TestServer::AddCommandHandlers()
     // Статус системы
     AddRoute("/api/status", [this](const HttpRequest &req, HttpResponse &res)
              {
+    try {
         auto status = XRayTubeController::instance().get_status();
         json::object jstatus;
         jstatus["voltage_kv"] = status.voltage_kv;
@@ -335,7 +348,11 @@ void TestServer::AddCommandHandlers()
         jstatus["exposure_active"] = status.exposure_active;
         jstatus["filament_on"] = status.filament_on;
         jstatus["error_state"] = status.error_state;
-        res.body() = json::serialize(jstatus); });
+        res.body() = json::serialize(jstatus);
+        res.result(http::status::ok);
+    } catch(const std::exception& e) {
+        sendError(res, "Failed to get status: " + std::string(e.what()));
+    } });
 
     // Логи экспозиции
     AddRoute("/api/logs/exposure", [this](const HttpRequest &req, HttpResponse &res)
@@ -459,45 +476,29 @@ void TestServer::HandleSession(boost::asio::ip::tcp::socket socket)
         res.set(http::field::content_type, "application/json");
         res.keep_alive(req.keep_alive());
 
-        if (req.method() == http::verb::get && req.target() == "/items")
+        std::string target_path = std::string(req.target());
+        size_t pos = target_path.find('?');
+        if (pos != std::string::npos)
         {
-            // C-style callback for sqlite3_exec
-            struct CB
-            {
-                static int f(void *d, int c, char **v, char **)
-                {
-                    auto vec = static_cast<std::vector<TestRecord> *>(d);
-                    vec->push_back({std::stoi(v[0]), v[1]});
-                    return 0;
-                }
-            };
-            std::vector<TestRecord> vec;
-            db_->Execute("SELECT id,name FROM test;", CB::f, &vec);
-
-            // avoid match with:contentReference[oaicite:11]{index=11}
-            jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
-            json::array arr;
-            for (auto &r : vec)
-            {
-                arr.push_back(json::parse(parser.Marshall(r)));
-            }
-            res.body() = json::serialize(arr);
+            target_path = target_path.substr(0, pos);
         }
-        else if (req.method() == http::verb::post && req.target() == "/items")
+
+        // Поиск зарегистрированного обработчика
+        auto it = m_routes.find(target_path);
+        if (it != m_routes.end())
         {
-            jetfire27::Engine::JsonParser::Parser<TestRecord> parser;
-            auto rec = parser.UnMarshall(req.body());
-            db_->Execute("INSERT INTO test(name) VALUES('" + rec.name + "');");
-            res.body() = R"({"status":"ok"})";
+            it->second(req, res); // Вызов обработчика
         }
         else
         {
-            res.result(http::status::bad_request);
-            res.body() = R"({"error":"bad request"})";
+            res.result(http::status::not_found);
+            res.body() = R"({"error":"endpoint not found"})";
         }
 
+        // Отправка ответа
         res.prepare_payload();
         http::write(stream, res);
+
         stream.socket().shutdown(tcp::socket::shutdown_send);
     }
     catch (const std::exception &e)

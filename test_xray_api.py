@@ -7,13 +7,12 @@ BASE_URL = "http://localhost:8080/api"
 TEST_PORT = "COM3"  # Порт микроконтроллера для прямого тестирования
 
 def test_rest_api():
-    """Тестирование REST API драйвера"""
     print("=== Testing X-Ray Driver REST API ===")
     
-    # 1. Установка параметров
+    # 1. Установка параметров трубки
     print("\n1. Setting tube parameters:")
     response = requests.post(
-        f"{BASE_URL}/configure",
+        f"{BASE_URL}/config",
         json={"voltage": 120, "current": 0.25}
     )
     print_response(response)
@@ -30,9 +29,15 @@ def test_rest_api():
     print("\n3. Monitoring status:")
     for _ in range(5):
         response = requests.get(f"{BASE_URL}/status")
-        status = response.json()
-        print(f"Voltage: {status['voltage_kv']}kV, Current: {status['current_ma']}mA")
-        print(f"Exposure: {'Active' if status['exposure_active'] else 'Inactive'}")
+        print(f"Response: {response.status_code}, Content: {response.text}")
+        
+        if response.status_code == 200:
+            status = response.json()
+            print(f"Voltage: {status['voltage_kv']}kV, Current: {status['current_ma']}mA")
+            print(f"Exposure: {'Active' if status['exposure_active'] else 'Inactive'}")
+        else:
+            print("Error getting status")
+        
         time.sleep(0.5)
     
     # 4. Аварийная остановка
@@ -86,7 +91,6 @@ def test_direct_comms(port=TEST_PORT):
         print("=== Direct Communication Test Completed ===")
 
 def print_response(response):
-    """Печать ответа сервера"""
     print(f"Status: {response.status_code}")
     try:
         print(json.dumps(response.json(), indent=2))
