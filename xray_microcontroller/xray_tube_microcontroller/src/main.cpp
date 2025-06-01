@@ -25,6 +25,7 @@ void emergency_stop();
 void update_voltmeter();
 void send_status();
 void check_current();
+void reset_fault();
 
 void setup() {
   Serial.begin(38400); 
@@ -78,6 +79,13 @@ void loop() {
     }
     else if (command.equals("GET_STATUS")) {
       send_status();
+    }
+    else if (command.equals("RESET_FAULT")) {
+        reset_fault();
+        Serial.println("FAULT_RESET_OK");
+    }
+    else if (command.equals("CONFIRM")) {
+        Serial.println("ACK");
     }
     else {
       Serial.println("ERROR: Unknown command");
@@ -217,4 +225,10 @@ void check_current() {
       Serial.println("FAULT: Current limit exceeded");
     }
   }
+}
+
+void reset_fault() {
+    fault_condition = false;
+    digitalWrite(FAULT_LED_PIN, LOW);
+    Serial.println("FAULT_RESET");
 }

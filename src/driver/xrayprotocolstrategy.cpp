@@ -82,6 +82,16 @@ void XRayProtocolStrategy::reset_connection()
     initialize();
 }
 
+void XRayProtocolStrategy::reset_fault() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    send_command("RESET_FAULT");
+    auto response = wait_response(500);
+    if (response.find("FAULT_RESET_OK") == std::string::npos) {
+        throw std::runtime_error("Fault reset failed");
+    }
+    current_status_.error_state = false;
+}
+
 void XRayProtocolStrategy::set_voltage(uint16_t kv)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -90,7 +100,23 @@ void XRayProtocolStrategy::set_voltage(uint16_t kv)
         return;
     }
     send_command(fmt::format("SET_VOLTAGE {}", kv));
+    auto response = wait_response(500);
+    if (response.find("VOLTAGE_SET:") == std::string::npos) {
+        throw std::runtime_error("Set voltage confirmation failed");
+    }
     current_status_.voltage_kv = kv;
+}
+
+void XRayProtocolStrategy::set_current(float ma) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (ma < 0.01f || ma > 0.4f)
+        throw std::runtime_error("Invalid current");
+    send_command(fmt::format("SET_CURRENT {:.2f}", ma));
+    auto response = wait_response(500);
+    if (response.find("SET_CURRENT:") == std::string::npos) {
+        throw std::runtime_error("Set voltage confirmation failed");
+    }
+    current_status_.current_ma = ma;
 }
 
 void XRayProtocolStrategy::start_exposure(uint32_t duration_ms)
@@ -104,6 +130,10 @@ void XRayProtocolStrategy::start_exposure(uint32_t duration_ms)
         throw std::runtime_error("Voltage not set");
 
     send_command(fmt::format("START_EXPOSURE {}", duration_ms));
+    auto response = wait_response(500);
+    if (response.find("EXPOSURE_STARTED:") == std::string::npos) {
+        throw std::runtime_error("Start exposure confirmation failed");
+    }
     current_status_.exposure_active = true;
 }
 
@@ -111,15 +141,25 @@ void XRayProtocolStrategy::emergency_stop()
 {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     send_command("EMERGENCY_STOP");
+    auto response = wait_response(500);
+    if (response.find("EMERGENCY_STOP") == std::string::npos) {
+        throw std::runtime_error("Start exposure confirmation failed");
+    }
     current_status_.exposure_active = false;
 }
 
 void XRayProtocolStrategy::send_command(const std::string &cmd)
 {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!port_.is_open()) return;
 
     try {
+        last_response_.clear();
         boost::asio::write(port_, boost::asio::buffer(cmd + "\r\n"));
+        auto response = wait_response(500);
+    if (response.find("ACK") == std::string::npos) {
+        throw std::runtime_error("No confirmation received");
+    }
     } catch (const std::exception& e) {
         last_error_ = e.what();
         Logger::GetInstance().Error("Send failed: {}", e.what());

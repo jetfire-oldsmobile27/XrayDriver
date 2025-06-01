@@ -13,6 +13,7 @@ public:
     void emergency_stop();
     bool is_exposure_active() const;
     void restart_driver();
+    void resetFault();
     bool test_connection();
     void set_voltage(uint16_t kv);
     void set_current(float ma);

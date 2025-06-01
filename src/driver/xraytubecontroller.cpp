@@ -58,21 +58,13 @@ void XRayTubeController::emergency_stop()
 {
     std::lock_guard<std::mutex> lock(mutex_);
     protocol_->emergency_stop();
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Emergency stop confirmed");
 }
 
 bool XRayTubeController::is_exposure_active() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return protocol_->is_exposure_active();
-}
-
-void XRayProtocolStrategy::set_current(float ma)
-{
-    //std::lock_guard<std::mutex> lock(mutex_);
-    if (ma < 0.01f || ma > 0.4f)
-        throw std::runtime_error("Invalid current");
-    send_command(fmt::format("SET_CURRENT {:.2f}", ma));
-    current_status_.current_ma = ma;
 }
 
 void XRayTubeController::restart_driver()
@@ -92,6 +84,12 @@ void XRayTubeController::restart_driver()
         jetfire27::Engine::Logging::Logger::GetInstance().Error("Hardware restart failed: {}", e.what());
     }
 
+}
+
+void XRayTubeController::resetFault() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    protocol_->reset_fault();
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Reset emergency confirmed");
 }
 
 bool XRayTubeController::test_connection()
@@ -130,18 +128,21 @@ void XRayTubeController::set_voltage(uint16_t kv)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     protocol_->set_voltage(kv);
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Voltage set to {} kV confirmed", kv);
 }
 
 void XRayTubeController::set_current(float ma)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     protocol_->set_current(ma);
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Current set to {} ma confirmed", ma);
 }
 
 void XRayTubeController::start_exposure(uint32_t duration_ms)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     protocol_->start_exposure(duration_ms);
+    jetfire27::Engine::Logging::Logger::GetInstance().Info("Exposure with duration {} ms confirmed", duration_ms);
 }
 
 IProtocolStrategy::Status XRayTubeController::get_status() const

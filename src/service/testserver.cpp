@@ -204,12 +204,19 @@ void TestServer::Start(uint16_t port)
     Run();
 }
 
-void TestServer::sendSuccess(HttpResponse &res)
+void TestServer::sendSuccess(HttpResponse &res, const std::string& success_msg)
 {
     res.result(http::status::ok);
-    res.body() = R"({"status":"success"})";
+
+    if (success_msg.empty()) {
+        res.body() = R"({"status":"success"})";
+    } else {
+        res.body() = std::string(R"({"status":")") + success_msg + R"("})";
+    }
+
     res.prepare_payload();
 }
+
 
 void TestServer::sendError(HttpResponse &res, const std::string &message)
 {
@@ -314,7 +321,7 @@ void TestServer::AddCommandHandlers()
             throw std::runtime_error("Invalid voltage (10-150 kV)");
             
         XRayTubeController::instance().set_voltage(voltage);
-        sendSuccess(res);
+        sendSuccess(res, "Voltage set to " + std::to_string(voltage) + " kV");
     } catch(const std::exception& e) {
         jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/voltage failed with error: {}", e.what());
         sendError(res, e.what());
@@ -330,7 +337,7 @@ void TestServer::AddCommandHandlers()
             throw std::runtime_error("Invalid current (0.01-0.4 mA)");
             
         XRayTubeController::instance().set_current(current);
-        sendSuccess(res);
+        sendSuccess(res, "Current set to " + std::to_string(current) + "mA");
     } catch(const std::exception& e) {
         jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/current failed with error: {}", e.what());
         sendError(res, e.what());
@@ -476,7 +483,7 @@ void TestServer::AddCommandHandlers()
     } catch(const std::exception& e) {
             jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/driver/status failed with error: {}", e.what());
             sendError(res, e.what());
-        }});
+        } });
 
     // Проверка соединения
     AddRoute("/api/connection/test", [this](const HttpRequest &req, HttpResponse &res)
@@ -491,6 +498,15 @@ void TestServer::AddCommandHandlers()
             jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/connection/test failed with error: {}", e.what());
             sendError(res, e.what());
         } });
+
+    AddRoute("/api/reset_fault", [this](const HttpRequest &req, HttpResponse &res)
+             {
+    try {
+        XRayTubeController::instance().resetFault();
+        sendSuccess(res, "Fault(emergency) condition reset");
+    } catch(const std::exception& e) {
+        sendError(res, e.what());
+    } });
 }
 
 void TestServer::HandleSession(boost::asio::ip::tcp::socket socket)

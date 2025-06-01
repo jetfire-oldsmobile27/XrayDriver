@@ -30,7 +30,7 @@ namespace jetfire27::Engine::Test {
         
         void AddCommandHandlers();
         void handleCommand(const HttpRequest& req, HttpResponse& res);
-        void sendSuccess(HttpResponse& res);
+        void sendSuccess(HttpResponse& res, const std::string& success_msg = "");
         void sendError(HttpResponse& res, const std::string& message);
         void start_accept();
         void handle_accept(const boost::system::error_code& ec, 

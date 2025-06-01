@@ -21,6 +21,7 @@ public:
     void initialize() override;
     void shutdown() override;
     void reset_connection() override;
+    void reset_fault();
 
     std::string wait_response(int timeout_ms);
     bool is_exposure_active() const { return current_status_.exposure_active; }
