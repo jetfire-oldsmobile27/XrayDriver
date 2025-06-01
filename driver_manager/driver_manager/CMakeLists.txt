@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(driver_manager VERSION 0.1 LANGUAGES CXX)
 
+set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.2 REQUIRED COMPONENTS Quick)
@@ -10,6 +12,7 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS Quick)
 
 qt_add_executable(appdriver_manager
     main.cpp
+    res/resources.qrc
 )
 
 qt_add_qml_module(appdriver_manager
@@ -17,6 +20,7 @@ qt_add_qml_module(appdriver_manager
     VERSION 1.0
     QML_FILES
         Main.qml
+    RESOURCES res/resources.qrc
 )
 
 
