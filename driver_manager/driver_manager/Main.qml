@@ -485,7 +485,7 @@ ApplicationWindow {
                                 window.errorMessage = "Неизвестная ошибка со стороны драйвера: " + xhr.responseText;
                             }
                         } catch (e) {
-                            window.errorMessage = "Ошибка проверки соединения со стороны микроконтроллера: HTTP " + xhr.status;
+                            window.errorMessage = "Ошибка проверки соединения со стороны драйвера: HTTP " + xhr.status;
                         }
                         window.showError = true;
                         hideErrorTimer.restart();

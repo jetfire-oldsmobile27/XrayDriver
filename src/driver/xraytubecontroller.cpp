@@ -68,7 +68,7 @@ bool XRayTubeController::is_exposure_active() const
 
 void XRayProtocolStrategy::set_current(float ma)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    //std::lock_guard<std::mutex> lock(mutex_);
     if (ma < 0.01f || ma > 0.4f)
         throw std::runtime_error("Invalid current");
     send_command(fmt::format("SET_CURRENT {:.2f}", ma));

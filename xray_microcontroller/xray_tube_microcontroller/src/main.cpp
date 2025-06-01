@@ -5,7 +5,7 @@ const uint8_t HV_RELAY_PIN = PB14;    // Реле высокого напряж�
 const uint8_t FILAMENT_RELAY_PIN = PB12;  // Реле накала
 const uint8_t VOLTMETER_PWM_PIN = PA0;   // ШИМ для вольтметра
 const uint8_t BACKLIGHT_PIN = PA7;       // Управление подсветкой
-const uint8_t FAULT_LED_PIN = PC13;      // Индикатор ошибки
+const uint8_t FAULT_LED_PIN = PC13;      // Индикатор ошибкиSerial
 
 // Параметры системы
 uint16_t target_voltage_kV = 0;      // Целевое напряжение (кВ)
@@ -27,7 +27,7 @@ void send_status();
 void check_current();
 
 void setup() {
-  Serial2.begin(38400); 
+  Serial.begin(38400); 
   
   // Настройка пинов
   pinMode(HV_RELAY_PIN, OUTPUT);
@@ -41,21 +41,24 @@ void setup() {
   analogWriteFrequency(1000); // Частота 1 кГц
   
   // Начальное состояние
-  digitalWrite(BACKLIGHT_PIN, HIGH);  // Включить подсветку
+  digitalWrite(BACKLIGHT_PIN, LOW);  // Включить подсветку
   digitalWrite(FAULT_LED_PIN, LOW);   // Выключить индикатор ошибки
   set_voltage(0);
   set_current(0.0f);
   
-  Serial2.println("SYSTEM_READY");
+  Serial.println("SYSTEM_READY");
 }
 
 void loop() {
   // Обработка входящих команд
-  if (Serial2.available()) {
-    String command = Serial2.readStringUntil('\n');
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
     command.trim();
     
-    if (command.startsWith("SET_VOLTAGE")) {
+    if (command.equals("PING")) {  
+      Serial.println("PONG");
+    }
+    else if (command.startsWith("SET_VOLTAGE")) {
       uint16_t kV = command.substring(11).toInt();
       set_voltage(kV);
     }
@@ -77,7 +80,7 @@ void loop() {
       send_status();
     }
     else {
-      Serial2.println("ERROR: Unknown command");
+      Serial.println("ERROR: Unknown command");
     }
   }
   
@@ -115,18 +118,18 @@ void loop() {
 
 void set_voltage(uint16_t kV) {
   if (kV < 10 || kV > 150) {
-    Serial2.println("ERROR: Voltage out of range (10-150 kV)");
+    Serial.println("ERROR: Voltage out of range (10-150 kV)");
     return;
   }
   
   target_voltage_kV = kV;
-  Serial2.print("VOLTAGE_SET:");
-  Serial2.println(target_voltage_kV);
+  Serial.print("VOLTAGE_SET:");
+  Serial.println(target_voltage_kV);
 }
 
 void set_current(float mA) {
   if (mA < 0.01f || mA > 0.4f) {
-    Serial2.println("ERROR: Current out of range (0.01-0.4 mA)");
+    Serial.println("ERROR: Current out of range (0.01-0.4 mA)");
     return;
   }
   
@@ -134,18 +137,18 @@ void set_current(float mA) {
   filament_on = (mA > 0.01f);
   digitalWrite(FILAMENT_RELAY_PIN, filament_on ? HIGH : LOW);
   
-  Serial2.print("CURRENT_SET:");
-  Serial2.println(target_current_mA, 2);
+  Serial.print("CURRENT_SET:");
+  Serial.println(target_current_mA, 2);
 }
 
 void start_exposure(uint32_t duration_ms) {
   if (fault_condition) {
-    Serial2.println("ERROR: System in fault condition");
+    Serial.println("ERROR: System in fault condition");
     return;
   }
   
   if (current_voltage_kV < 10) {
-    Serial2.println("ERROR: Voltage too low for exposure");
+    Serial.println("ERROR: Voltage too low for exposure");
     return;
   }
   
@@ -153,14 +156,14 @@ void start_exposure(uint32_t duration_ms) {
   exposure_end_time = millis() + duration_ms;
   digitalWrite(HV_RELAY_PIN, HIGH);
   
-  Serial2.print("EXPOSURE_STARTED:");
-  Serial2.println(duration_ms);
+  Serial.print("EXPOSURE_STARTED:");
+  Serial.println(duration_ms);
 }
 
 void stop_exposure() {
   exposure_active = false;
   digitalWrite(HV_RELAY_PIN, LOW);
-  Serial2.println("EXPOSURE_STOPPED");
+  Serial.println("EXPOSURE_STOPPED");
 }
 
 void emergency_stop() {
@@ -171,7 +174,7 @@ void emergency_stop() {
   digitalWrite(FILAMENT_RELAY_PIN, LOW);
   fault_condition = true;
   
-  Serial2.println("EMERGENCY_STOP");
+  Serial.println("EMERGENCY_STOP");
 }
 
 void update_voltmeter() {
@@ -181,14 +184,14 @@ void update_voltmeter() {
 }
 
 void send_status() {
-  Serial2.print("STATUS:");
-  Serial2.print("V="); Serial2.print(current_voltage_kV);
-  Serial2.print(",T="); Serial2.print(target_voltage_kV);
-  Serial2.print(",I="); Serial2.print(measured_current_mA, 2);
-  Serial2.print(",E="); Serial2.print(exposure_active ? "1" : "0");
-  Serial2.print(",F="); Serial2.print(filament_on ? "1" : "0");
-  Serial2.print(",A="); Serial2.print(fault_condition ? "1" : "0");
-  Serial2.println();
+  Serial.print("STATUS:");
+  Serial.print("V="); Serial.print(current_voltage_kV);
+  Serial.print(",T="); Serial.print(target_voltage_kV);
+  Serial.print(",I="); Serial.print(measured_current_mA, 2);
+  Serial.print(",E="); Serial.print(exposure_active ? "1" : "0");
+  Serial.print(",F="); Serial.print(filament_on ? "1" : "0");
+  Serial.print(",A="); Serial.print(fault_condition ? "1" : "0");
+  Serial.println();
 }
 
 void check_current() {
@@ -206,12 +209,12 @@ void check_current() {
   
   // Проверка на перегрузку
   if (measured_current_mA > target_current_mA * 1.15f) {
-    Serial2.print("WARNING: Current overload ");
-    Serial2.println(measured_current_mA, 2);
+    Serial.print("WARNING: Current overload ");
+    Serial.println(measured_current_mA, 2);
     
     if (measured_current_mA > target_current_mA * 1.25f) {
       emergency_stop();
-      Serial2.println("FAULT: Current limit exceeded");
+      Serial.println("FAULT: Current limit exceeded");
     }
   }
 }

@@ -98,8 +98,9 @@ int main_function()
         ShowWindow(hWnd, SW_HIDE);
     #endif
 #endif
-
-    Logging::Logger::GetInstance().Initialize(jetfire27::Engine::FilesystemUtils::GetLogDirectory());
+    auto& log = Logging::Logger::GetInstance();
+    log.Initialize(jetfire27::Engine::FilesystemUtils::GetLogDirectory());
+    log.Info("============Starting new session of XRAY Dynamic Driver============");
     std::signal(SIGINT, out_handler);
 
     try

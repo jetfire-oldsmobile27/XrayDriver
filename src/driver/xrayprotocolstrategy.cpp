@@ -1,6 +1,6 @@
+// xrayprotocolstrategy.cpp
 #include "driver/xrayprotocolstrategy.h"
 #include "service/logger.h"
-
 using namespace jetfire27::Engine::Logging;
 
 XRayProtocolStrategy::XRayProtocolStrategy(boost::asio::io_context &io, const std::string &port)
@@ -10,6 +10,10 @@ bool XRayProtocolStrategy::test_connection()
 {
     try
     {
+        {
+            std::lock_guard<std::recursive_mutex> lock(mutex_);
+            last_response_.clear();
+        }
         send_command("PING");
         auto response = wait_response(500);
         return response == "PONG";
@@ -22,13 +26,12 @@ bool XRayProtocolStrategy::test_connection()
 
 void XRayProtocolStrategy::process(const std::vector<uint8_t> &data)
 {
-    // Здесь должна быть логика обработки данных
-    // Пока оставляем пустым
+    // Пока пусто
 }
 
 void XRayProtocolStrategy::initialize()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
 
     if (port_.is_open())
         port_.close();
@@ -54,9 +57,9 @@ void XRayProtocolStrategy::initialize()
         std::string msg = "Failed to open port '" + port_name_ + "': ";
         msg += e.what();
 
-#ifdef _WIN32
+   #ifdef _WIN32
         msg += "\nCheck COM port format: use 'COMx' (e.g., COM3)";
-#endif
+   #endif
         current_status_.error_state = true;
         Logger::GetInstance().Error("Controller init failed: {}", msg);
         last_error_ = msg;
@@ -65,7 +68,7 @@ void XRayProtocolStrategy::initialize()
 
 void XRayProtocolStrategy::shutdown()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (port_.is_open())
     {
         port_.close();
@@ -81,14 +84,22 @@ void XRayProtocolStrategy::reset_connection()
 
 void XRayProtocolStrategy::set_voltage(uint16_t kv)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!port_.is_open()) {
+        Logger::GetInstance().Error("Port not open!");
+        return;
+    }
     send_command(fmt::format("SET_VOLTAGE {}", kv));
     current_status_.voltage_kv = kv;
 }
 
 void XRayProtocolStrategy::start_exposure(uint32_t duration_ms)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!port_.is_open()) {
+        Logger::GetInstance().Error("Port not open!");
+        return;
+    }
     if (current_status_.voltage_kv < 10)
         throw std::runtime_error("Voltage not set");
 
@@ -98,28 +109,22 @@ void XRayProtocolStrategy::start_exposure(uint32_t duration_ms)
 
 void XRayProtocolStrategy::emergency_stop()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     send_command("EMERGENCY_STOP");
     current_status_.exposure_active = false;
 }
 
 void XRayProtocolStrategy::send_command(const std::string &cmd)
 {
-    boost::asio::deadline_timer timer(port_.get_executor());
-    timer.expires_from_now(boost::posix_time::milliseconds(500));
+    if (!port_.is_open()) return;
 
-    port_.async_write_some(boost::asio::buffer(cmd + "\r\n"),
-                           [&](auto ec, auto)
-                           {
-                               timer.cancel();
-                               if (ec)
-                                   throw boost::system::system_error(ec);
-                           });
-
-    timer.async_wait([&](auto ec)
-                     {
-        if(!ec) port_.cancel(); });
-    Logger::GetInstance().Debug("Sent command: {}", cmd);
+    try {
+        boost::asio::write(port_, boost::asio::buffer(cmd + "\r\n"));
+    } catch (const std::exception& e) {
+        last_error_ = e.what();
+        Logger::GetInstance().Error("Send failed: {}", e.what());
+    }
+    Logger::GetInstance().Info("Sent command: {}", cmd);
 }
 
 void XRayProtocolStrategy::read_handler(const boost::system::error_code &ec, size_t bytes)
@@ -130,9 +135,11 @@ void XRayProtocolStrategy::read_handler(const boost::system::error_code &ec, siz
         std::string response;
         std::getline(is, response);
 
+        if (!response.empty() && response.back() == '\r') {
+            response.pop_back();
+        }
         parse_response(response);
 
-        // Продолжаем чтение
         boost::asio::async_read_until(port_, read_buffer_, '\n',
                                       [this](auto ec, auto size)
                                       { read_handler(ec, size); });
@@ -145,9 +152,10 @@ void XRayProtocolStrategy::read_handler(const boost::system::error_code &ec, siz
 
 void XRayProtocolStrategy::parse_response(const std::string &response)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    Logger::GetInstance().Info("Parse response from hardware xray controller: {}", response);
     last_response_ = response;
-    response_condition_.notify_all();
+    response_condition_.notify_all();  // работает с std::condition_variable_any
 
     if (response.find("OK") != std::string::npos)
     {
@@ -167,27 +175,32 @@ void XRayProtocolStrategy::parse_response(const std::string &response)
 
 std::string XRayProtocolStrategy::wait_response(int timeout_ms)
 {
-    std::unique_lock<std::mutex> lock(mutex_);
-    response_condition_.wait_for(lock,
-                                 std::chrono::milliseconds(timeout_ms),
-                                 [this]
-                                 { return !last_response_.empty(); });
-
-    return std::move(last_response_);
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    if ( response_condition_.wait_for(
+           lock,
+           std::chrono::milliseconds(timeout_ms),
+           [this] { return !last_response_.empty(); }
+         ) )
+    {
+        return std::move(last_response_);
+    }
+    return "";
 }
 
 IProtocolStrategy::Status XRayProtocolStrategy::get_status() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     return {
         current_status_.voltage_kv,
         current_status_.current_ma,
         current_status_.exposure_active,
         current_status_.filament_on,
-        current_status_.error_state};
+        current_status_.error_state
+    };
 }
 
-std::string XRayProtocolStrategy::last_error() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+std::string XRayProtocolStrategy::last_error() const
+{
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     return last_error_;
 }

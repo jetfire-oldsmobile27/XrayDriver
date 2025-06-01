@@ -276,6 +276,7 @@ void TestServer::AddCommandHandlers()
                 sendSuccess(res);
             }
         } catch(const std::exception& e) {
+            jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/config failed with error: {}", e.what());
             sendError(res, e.what());
         } });
 
@@ -299,6 +300,7 @@ void TestServer::AddCommandHandlers()
         
         sendSuccess(res);
     } catch(const std::exception& e) {
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/exposure/now failed with error: {}", e.what());
         sendError(res, e.what());
     } });
 
@@ -314,6 +316,7 @@ void TestServer::AddCommandHandlers()
         XRayTubeController::instance().set_voltage(voltage);
         sendSuccess(res);
     } catch(const std::exception& e) {
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/voltage failed with error: {}", e.what());
         sendError(res, e.what());
     } });
 
@@ -329,6 +332,7 @@ void TestServer::AddCommandHandlers()
         XRayTubeController::instance().set_current(current);
         sendSuccess(res);
     } catch(const std::exception& e) {
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/current failed with error: {}", e.what());
         sendError(res, e.what());
     } });
 
@@ -353,6 +357,7 @@ void TestServer::AddCommandHandlers()
         res.body() = json::serialize(jstatus);
         res.result(http::status::ok);
     } catch(const std::exception& e) {
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/status failed with error: {}", e.what());
         sendError(res, "Failed to get status: " + std::string(e.what()));
     } });
 
@@ -389,6 +394,7 @@ void TestServer::AddCommandHandlers()
 
             res.body() = json::serialize(logs);
         } catch(const std::exception& e) {
+            jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/logs/exposure failed with error: {}", e.what());
             sendError(res, e.what());
         } });
 
@@ -433,6 +439,7 @@ void TestServer::AddCommandHandlers()
         res.prepare_payload();
     }
     catch(const std::exception& e) {
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/logs/system failed with error: {}", e.what());
         sendError(res, e.what());
     } });
 
@@ -453,6 +460,7 @@ void TestServer::AddCommandHandlers()
             
             sendSuccess(res);
         } catch(const std::exception& e) {
+            jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/driver/restart failed with error: {}", e.what());
             sendError(res, e.what());
         } });
 
@@ -466,6 +474,7 @@ void TestServer::AddCommandHandlers()
         status["last_error"] = XRayTubeController::instance().last_error();
         res.body() = json::serialize(status);
     } catch(const std::exception& e) {
+            jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/driver/status failed with error: {}", e.what());
             sendError(res, e.what());
         }});
 
@@ -479,6 +488,7 @@ void TestServer::AddCommandHandlers()
             response["response_time"] = XRayTubeController::instance().last_ping_time().count();
             res.body() = json::serialize(response);
         } catch(const std::exception& e) {
+            jetfire27::Engine::Logging::Logger::GetInstance().Error("Route /api/connection/test failed with error: {}", e.what());
             sendError(res, e.what());
         } });
 }
