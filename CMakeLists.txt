@@ -11,19 +11,25 @@ if(WIN32)
         add_compile_options("/utf-8")
         set(CMAKE_JOB_POOL_LINK link_pool)
         set(CMAKE_JOB_POOLS link_pool=1)
-        add_compile_definitions(_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING)
+        add_compile_definitions(
+            _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING
+        )
     endif()
 endif()
 
 find_package(Boost 1.86 CONFIG REQUIRED COMPONENTS system filesystem json)
 find_package(SQLite3 CONFIG REQUIRED)
+
+# Ищем OpenCV, просим нужные компоненты (dnn, imgproc, core)
 find_package(OpenCV REQUIRED COMPONENTS dnn imgproc core)
+
 find_package(spdlog REQUIRED)
 
 include_directories(
     include
     ${Boost_INCLUDE_DIRS}
     ${SQLite3_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}    # <— лишним не будет, но обычно OpenCV_INCLUDE_DIRS задаётся самим find_package
 )
 
 file(GLOB_RECURSE SOURCES
@@ -34,53 +40,67 @@ file(GLOB_RECURSE SOURCES
 
 set(RESOURCE_FILE "${CMAKE_SOURCE_DIR}/resources/driver.rc")
 
+# ---------------------- Создаём консольный таргет -----------------------
 add_executable(XRayDriver
     ${SOURCES}
     ${RESOURCE_FILE}
 )
 set_target_properties(XRayDriver PROPERTIES
-    OUTPUT_NAME    "XRayDriver_console"
+    OUTPUT_NAME         "XRayDriver_console"
     RUNTIME_OUTPUT_NAME "XRayDriver_console"
 )
 
 if(WIN32)
+    # ----------------- GUI-таргет только для Windows -----------------
     add_executable(XRayDriver_GUI WIN32
         ${SOURCES}
         ${RESOURCE_FILE}
     )
     set_target_properties(XRayDriver_GUI PROPERTIES
-        OUTPUT_NAME    "XRayDriver"
+        OUTPUT_NAME         "XRayDriver"
         RUNTIME_OUTPUT_NAME "XRayDriver"
     )
     target_compile_definitions(XRayDriver_GUI PRIVATE IS_GUI_APP)
 endif()
 
+# ---------------- Объявляем функцию для линковки ----------------
 function(link_target TARGET_NAME)
     target_link_libraries(${TARGET_NAME}
         PRIVATE
             Boost::system
             Boost::filesystem
-            ${OpenCV_LIBS}
             Boost::json
             SQLite::SQLite3
             spdlog::spdlog
+
+            ${OpenCV_LIBS}    # линкуем именно переменную OpenCV_LIBS
     )
 endfunction()
 
+# Линкуем консольный таргет
 link_target(XRayDriver)
+
+# Линкуем GUI-таргет, если он есть
 if(WIN32)
     link_target(XRayDriver_GUI)
 endif()
 
 # ==================== Installation ====================
 set(RESOURCES_DIR ${CMAKE_SOURCE_DIR}/resources)
-set(ASSETS_DIR ${RESOURCES_DIR}/assets)
+set(ASSETS_DIR    ${RESOURCES_DIR}/assets)
 
-install(TARGETS
-    XRayDriver       
-    XRayDriver_GUI   
-    RUNTIME DESTINATION bin
-)
+if (WIN32)
+    install(TARGETS
+        XRayDriver
+        XRayDriver_GUI
+        RUNTIME DESTINATION bin
+    )
+else()
+    install(TARGETS
+        XRayDriver
+        RUNTIME DESTINATION bin
+    )
+endif()
 
 install(FILES
     ${ASSETS_DIR}/driver.ico

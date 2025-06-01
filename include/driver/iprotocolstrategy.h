@@ -17,11 +17,12 @@ public:
     virtual void reset_connection() = 0;
     
     virtual bool is_exposure_active() const = 0;
-    virtual struct Status {
+    struct Status {
         uint16_t voltage_kv;
         float current_ma;
         bool exposure_active;
         bool filament_on; 
         bool error_state;
-    } get_status() const = 0;
+    };
+    virtual struct Status get_status() const = 0;
 };

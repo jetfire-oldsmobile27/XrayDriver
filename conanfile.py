@@ -7,14 +7,20 @@ class jetfire27EngineConan(ConanFile):
     version = "0.1"
     license = "LGPL"
     settings = "os", "compiler", "build_type", "arch"
-    requires = ["boost/1.86.0", "sqlite3/3.45.0", "opencv/4.9.0", "spdlog/1.14.0"]
+    requires = ["boost/1.86.0", "sqlite3/3.45.0", "spdlog/1.14.0"]
     generators = "CMakeToolchain", "CMakeDeps"
-    exports_sources = "include/*", "src/*", "CMakeLists.txt", "main.cpp"
+    exports_sources = (
+        "include/*", "src/*", "CMakeLists.txt", "main.cpp",
+    )
+    default_options = {
+        "libiconv/*:shared": True,
+    }
 
     def layout(self):
         pass
 
     def build(self):
+        
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
