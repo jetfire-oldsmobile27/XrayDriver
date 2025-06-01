@@ -91,7 +91,17 @@
 			"xstring": "cpp",
 			"xtr1common": "cpp",
 			"xtree": "cpp",
-			"xutility": "cpp"
+			"xutility": "cpp",
+			"cwctype": "cpp",
+			"deque": "cpp",
+			"numbers": "cpp",
+			"numeric": "cpp",
+			"queue": "cpp",
+			"random": "cpp",
+			"semaphore": "cpp",
+			"memory_resource": "cpp",
+			"string_view": "cpp",
+			"cinttypes": "cpp"
 		}
 	}
 }

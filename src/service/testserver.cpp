@@ -8,6 +8,7 @@
 #include <boost/beast/version.hpp>
 #include <boost/json.hpp>
 #include <fmt/format.h>
+#include <filesystem>
 #include <boost/asio/ip/tcp.hpp>
 
 namespace asio = boost::asio;
@@ -151,7 +152,7 @@ void TestServer::Run()
         for (;;)
         {
             auto sock = boost::asio::ip::tcp::socket(m_ioc);
-            m_acceptor->accept(sock); 
+            m_acceptor->accept(sock);
             HandleSession(std::move(sock));
         }
     }
@@ -394,30 +395,46 @@ void TestServer::AddCommandHandlers()
     // Системные логи
     AddRoute("/api/logs/system", [this](const HttpRequest &req, HttpResponse &res)
              {
-        try {
-            std::string type_filter = "%";
-            if(auto param = req.find("type"); param != req.end())
-                type_filter = param->value();
+    try {
+        // Получаем директорию логов из Logger
+        std::string logDir = jetfire27::Engine::Logging::Logger::GetInstance().GetLogDirectory();
 
-            json::array logs;
-            db_->Execute(fmt::format(
-                "SELECT timestamp, event_type, details "
-                "FROM system_events WHERE event_type LIKE '{}' "
-                "ORDER BY id DESC LIMIT 100", type_filter),
-                [](void* data, int argc, char** argv, char** cols) {
-                    auto arr = static_cast<json::array*>(data);
-                    json::object log;
-                    log["timestamp"] = argv[0];
-                    log["type"] = argv[1];
-                    log["details"] = argv[2];
-                    arr->push_back(log);
-                    return 0;
-                }, &logs);
+        // Получаем текущую дату
+        std::time_t t = std::time(nullptr);
+        std::tm tm = *std::localtime(&t);
 
-            res.body() = json::serialize(logs);
-        } catch(const std::exception& e) {
-            sendError(res, e.what());
-        } });
+        // Формируем имя лог-файла с учетом текущей даты
+        std::ostringstream filenameStream;
+        filenameStream << "jet_service_" << std::put_time(&tm, "%Y-%m-%d") << ".log";
+        std::filesystem::path logFile = std::filesystem::path(logDir) / filenameStream.str();
+
+        if (!std::filesystem::exists(logFile)) {
+            // Если файл не найден — отвечаем 404
+            res.result(boost::beast::http::status::not_found);
+            res.set(boost::beast::http::field::content_type, "application/json; charset=utf-8");
+            res.body() = R"({"error":"Log file not found"})";
+            res.prepare_payload();
+            return;
+        }
+
+        // Открываем файл и читаем всё в строку
+        std::ifstream ifs(logFile, std::ios::in);
+        if (!ifs.is_open()) {
+            throw std::runtime_error("Unable to open log file");
+        }
+        std::ostringstream ss;
+        ss << ifs.rdbuf();
+        std::string contents = ss.str();
+
+        // Отправляем ответ как plain-text
+        res.set(boost::beast::http::field::content_type, "text/plain; charset=utf-8");
+        res.result(boost::beast::http::status::ok);
+        res.body() = contents;
+        res.prepare_payload();
+    }
+    catch(const std::exception& e) {
+        sendError(res, e.what());
+    } });
 
     // Перезапуск драйвера
     AddRoute("/api/driver/restart", [this](const HttpRequest &req, HttpResponse &res)
@@ -466,8 +483,9 @@ void TestServer::HandleSession(boost::asio::ip::tcp::socket socket)
 {
     try
     {
+        auto &log = jetfire27::Engine::Logging::Logger::GetInstance();
         const auto &ep = socket.remote_endpoint();
-        jetfire27::Engine::Logging::Logger::GetInstance().Info("New connection from {}:{}", ep.address().to_string(), ep.port());
+        log.Info("New connection from {}:{}", ep.address().to_string(), ep.port());
         beast::tcp_stream stream(std::move(socket));
         beast::flat_buffer buf;
         http::request<http::string_body> req;
@@ -478,6 +496,7 @@ void TestServer::HandleSession(boost::asio::ip::tcp::socket socket)
         res.keep_alive(req.keep_alive());
 
         std::string target_path = std::string(req.target());
+        log.Info("Incoming response: {}", target_path);
         size_t pos = target_path.find('?');
         if (pos != std::string::npos)
         {

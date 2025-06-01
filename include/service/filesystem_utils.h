@@ -9,6 +9,9 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
+
+#include <shlobj.h>
 #define MKDIR(path) _mkdir(path)
 #else
 #include <unistd.h>
