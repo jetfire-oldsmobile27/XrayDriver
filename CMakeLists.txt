@@ -31,12 +31,13 @@ file(GLOB_RECURSE SOURCES
     "src/driver/*.cpp"
     "src/service/*.cpp"
 )
+set(RESOURCE_FILE "${CMAKE_SOURCE_DIR}/resources/driver.rc")
 
 # Консольная версия для отладки
-add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(${PROJECT_NAME} ${SOURCES} ${RESOURCE_FILE})
 
 if(WIN32)
-    add_executable(${PROJECT_NAME}_GUI WIN32 ${SOURCES})
+    add_executable(${PROJECT_NAME}_GUI WIN32 ${SOURCES} ${RESOURCE_FILE})
     set_target_properties(${PROJECT_NAME}_GUI PROPERTIES
         OUTPUT_NAME ${PROJECT_NAME}
         RUNTIME_OUTPUT_NAME ${PROJECT_NAME}
@@ -77,7 +78,7 @@ install(TARGETS XRayDriver
 )
 
 install(FILES
-    ${ASSETS_DIR}/app.ico
+    ${ASSETS_DIR}/driver.ico
     ${RESOURCES_DIR}/LICENSE.txt  
     DESTINATION bin
 )
@@ -88,7 +89,7 @@ include(InstallRequiredSystemLibraries)
 set(CPACK_PACKAGE_NAME "XRAY Driver")
 set(CPACK_PACKAGE_VENDOR "Дедов Дмитрий")
 set(CPACK_RESOURCE_FILE_LICENSE "${RESOURCES_DIR}/LICENSE.txt")  
-set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\app.ico")
+set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\driver.ico")
 
 if(WIN32)
     set(CPACK_GENERATOR "NSIS")
@@ -98,7 +99,7 @@ if(WIN32)
         CreateShortCut \\\"$DESKTOP\\\\Драйвер Динамической трубки.lnk\\\" \\
             \\\"$INSTDIR\\\\bin\\\\XRayDriver_console.exe\\\" \\
             \\\"\\\" \\
-            \\\"$INSTDIR\\\\bin\\\\app.ico\\\"
+            \\\"$INSTDIR\\\\bin\\\\driver.ico\\\"
     ")
 endif()
 
