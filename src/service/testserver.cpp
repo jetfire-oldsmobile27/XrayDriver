@@ -459,11 +459,15 @@ void TestServer::AddCommandHandlers()
     // Статус драйвера
     AddRoute("/api/driver/status", [this](const HttpRequest &req, HttpResponse &res)
              {
+        try {
         json::object status;
         status["connected"] = XRayTubeController::instance().is_connected();
         status["exposure_active"] = XRayTubeController::instance().is_exposure_active();
         status["last_error"] = XRayTubeController::instance().last_error();
-        res.body() = json::serialize(status); });
+        res.body() = json::serialize(status);
+    } catch(const std::exception& e) {
+            sendError(res, e.what());
+        }});
 
     // Проверка соединения
     AddRoute("/api/connection/test", [this](const HttpRequest &req, HttpResponse &res)

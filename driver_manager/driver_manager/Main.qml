@@ -451,32 +451,50 @@ ApplicationWindow {
 
     // GET /api/connection/test (с обработкой ошибок)
     function fetchConnectionTest() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/connection/test");
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    var resp = JSON.parse(xhr.responseText);
-                    connectionResult.text = resp.status + ", " + resp.response_time + "мс";
-                } else {
-                    try {
-                        var respObj = JSON.parse(xhr.responseText);
-                        if (respObj.error) {
-                            window.errorMessage = respObj.error;
-                        } else {
-                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText;
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", baseUrl + "/api/connection/test");
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status === 200) {
+                        // Сервер вернул HTTP 200, разбираем JSON вида { "status": "OK" или "ERROR", "response_time": <число> }
+                        try {
+                            var resp = JSON.parse(xhr.responseText);
+                            if (resp.status === "OK") {
+                                connectionResult.text = "OK, " + resp.response_time + " мс";
+                            } else {
+                                // Сервер вернул status = "ERROR"
+                                window.errorMessage = "Ошибка соединения: ответ сервера = ERROR, время = " + resp.response_time + " мс";
+                                window.showError = true;
+                                hideErrorTimer.restart();
+                                connectionResult.text = "ERROR";
+                            }
+                        } catch (e) {
+                            // Не удалось распарсить JSON
+                            window.errorMessage = "Неправильный формат ответа от /api/connection/test";
+                            window.showError = true;
+                            hideErrorTimer.restart();
+                            connectionResult.text = "Ошибка";
                         }
-                    } catch (e) {
-                        window.errorMessage = "Ошибка проверки соединения: код " + xhr.status;
+                    } else {
+                        // HTTP-уровневая ошибка (статус ≠ 200)
+                        try {
+                            var respObj = JSON.parse(xhr.responseText);
+                            if (respObj.error) {
+                                window.errorMessage = respObj.error;
+                            } else {
+                                window.errorMessage = "Неизвестная ошибка со стороны драйвера: " + xhr.responseText;
+                            }
+                        } catch (e) {
+                            window.errorMessage = "Ошибка проверки соединения со стороны микроконтроллера: HTTP " + xhr.status;
+                        }
+                        window.showError = true;
+                        hideErrorTimer.restart();
+                        connectionResult.text = "Ошибка";
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
-                    connectionResult.text = "Ошибка";
                 }
             }
+            xhr.send();
         }
-        xhr.send();
-    }
 
     // GET /api/status (с обработкой ошибок)
     function fetchStatus() {
