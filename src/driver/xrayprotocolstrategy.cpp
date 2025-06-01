@@ -57,8 +57,9 @@ void XRayProtocolStrategy::initialize()
 #ifdef _WIN32
         msg += "\nCheck COM port format: use 'COMx' (e.g., COM3)";
 #endif
-
-        throw std::runtime_error(msg);
+        current_status_.error_state = true;
+        Logger::GetInstance().Error("Controller init failed: {}", msg);
+        last_error_ = msg;
     }
 }
 
@@ -184,4 +185,9 @@ IProtocolStrategy::Status XRayProtocolStrategy::get_status() const
         current_status_.exposure_active,
         current_status_.filament_on,
         current_status_.error_state};
+}
+
+std::string XRayProtocolStrategy::last_error() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return last_error_;
 }

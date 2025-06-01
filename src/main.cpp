@@ -2,6 +2,7 @@
 #include "service/daemonizer.h"
 #include "service/logger.h"
 #include "service/filesystem_utils.h"
+#include <exception>
 #include <memory>
 #include <boost/asio.hpp>
 #include <csignal>
@@ -84,6 +85,11 @@ int main() {
 int main_function()
 {
     using namespace jetfire27::Engine;
+
+    std::set_terminate([]() {
+        Logging::Logger::GetInstance().Critical("Unhandled exception detected!");
+        std::exit(EXIT_FAILURE);
+    });
 
 #ifdef _WIN32
     HWND hWnd = nullptr;

@@ -38,6 +38,7 @@ public:
     IProtocolStrategy::Status get_status() const override;
     
     void restart_driver();
+    std::string last_error() const;
     void send_command(const std::string& cmd);
     void read_handler(const boost::system::error_code& ec, size_t bytes);
     void parse_response(const std::string& response);
@@ -52,5 +53,6 @@ private:
     std::string port_name_;
     boost::asio::streambuf read_buffer_;
     std::string last_response_;
+    std::string last_error_;
     std::condition_variable response_condition_;
 };

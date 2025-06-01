@@ -84,7 +84,7 @@ Content-Type: application/json
 Пример `config.json`:
 ```json
 {
-  "com_port": "/dev/ttyXR0",
+  "com_port": "/dev/ttyUSB0",
   "baud_rate": 38400,
   "http_port": 8080,
   "max_voltage": 150,

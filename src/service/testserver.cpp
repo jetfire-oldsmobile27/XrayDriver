@@ -86,7 +86,7 @@ TestServer::TestServer(unsigned short port, const std::string &dbPath)
 #ifdef _WIN32
         const char *default_com = "COM1";
 #else
-        const char *default_com = "/dev/ttyS0";
+        const char *default_com = "/dev/ttyUSB0";
 #endif
 
         db_->Execute(
@@ -348,6 +348,7 @@ void TestServer::AddCommandHandlers()
         jstatus["exposure_active"] = status.exposure_active;
         jstatus["filament_on"] = status.filament_on;
         jstatus["error_state"] = status.error_state;
+        jstatus["last_error"] = XRayTubeController::instance().last_error();
         res.body() = json::serialize(jstatus);
         res.result(http::status::ok);
     } catch(const std::exception& e) {

@@ -22,7 +22,7 @@ void XRayTubeController::init(boost::asio::io_context &io,
 #ifdef _WIN32
             port = "COM1"; // Значение по умолчанию для Windows
 #else
-            port = "/dev/ttyS0"; // Значение по умолчанию для Linux
+            port = "/dev/ttyUSB0"; // Значение по умолчанию для Linux
 #endif
             log.Info("Using default COM port: {}", port);
         }
@@ -41,6 +41,10 @@ void XRayTubeController::init(boost::asio::io_context &io,
     catch (const std::exception &e)
     {
         log.Error("X-Ray controller failed: {}", e.what());
+        IProtocolStrategy::Status hardware_status = protocol_->get_status();
+        if (hardware_status.error_state) {
+            log.Error("Hardware connection failed with message: {}", protocol_->last_error());
+        };
         throw;
     }
     catch (...)
@@ -76,19 +80,18 @@ void XRayTubeController::restart_driver()
     using namespace std::chrono_literals;
 
     std::lock_guard<std::mutex> lock(mutex_);
-    if (is_exposure_active())
-    {
-        emergency_stop();
-        std::this_thread::sleep_for(500ms);
+    
+    try {
+        if (protocol_) {
+            protocol_->shutdown();
+            protocol_->initialize(); 
+        }
+        jetfire27::Engine::Logging::Logger::GetInstance().Info("Hardware connection restarted");
+    } catch (const std::exception& e) {
+        last_error_ = e.what();
+        jetfire27::Engine::Logging::Logger::GetInstance().Error("Hardware restart failed: {}", e.what());
     }
 
-    if (protocol_)
-    {
-        protocol_->shutdown();
-        protocol_->initialize();
-    }
-
-    jetfire27::Engine::Logging::Logger::GetInstance().Info("Driver restarted");
 }
 
 bool XRayTubeController::test_connection()
