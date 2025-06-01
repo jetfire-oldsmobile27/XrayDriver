@@ -21,38 +21,42 @@ find_package(OpenCV REQUIRED COMPONENTS dnn imgproc core)
 find_package(spdlog REQUIRED)
 
 include_directories(
-    include 
+    include
     ${Boost_INCLUDE_DIRS}
     ${SQLite3_INCLUDE_DIRS}
 )
 
-file(GLOB_RECURSE SOURCES 
+file(GLOB_RECURSE SOURCES
     "src/*.cpp"
     "src/driver/*.cpp"
     "src/service/*.cpp"
 )
+
 set(RESOURCE_FILE "${CMAKE_SOURCE_DIR}/resources/driver.rc")
 
-# Консольная версия для отладки
-add_executable(${PROJECT_NAME} ${SOURCES} ${RESOURCE_FILE})
+add_executable(XRayDriver
+    ${SOURCES}
+    ${RESOURCE_FILE}
+)
+set_target_properties(XRayDriver PROPERTIES
+    OUTPUT_NAME    "XRayDriver_console"
+    RUNTIME_OUTPUT_NAME "XRayDriver_console"
+)
 
 if(WIN32)
-    add_executable(${PROJECT_NAME}_GUI WIN32 ${SOURCES} ${RESOURCE_FILE})
-    set_target_properties(${PROJECT_NAME}_GUI PROPERTIES
-        OUTPUT_NAME ${PROJECT_NAME}
-        RUNTIME_OUTPUT_NAME ${PROJECT_NAME}
+    add_executable(XRayDriver_GUI WIN32
+        ${SOURCES}
+        ${RESOURCE_FILE}
     )
-    target_compile_definitions(${PROJECT_NAME}_GUI PRIVATE IS_GUI_APP)
-    
-    # Для консольной версии  другое имя
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        OUTPUT_NAME "${PROJECT_NAME}_console"
-        RUNTIME_OUTPUT_NAME "${PROJECT_NAME}_console"
+    set_target_properties(XRayDriver_GUI PROPERTIES
+        OUTPUT_NAME    "XRayDriver"
+        RUNTIME_OUTPUT_NAME "XRayDriver"
     )
+    target_compile_definitions(XRayDriver_GUI PRIVATE IS_GUI_APP)
 endif()
 
-function(link_target TARGET)
-    target_link_libraries(${TARGET}
+function(link_target TARGET_NAME)
+    target_link_libraries(${TARGET_NAME}
         PRIVATE
             Boost::system
             Boost::filesystem
@@ -63,44 +67,42 @@ function(link_target TARGET)
     )
 endfunction()
 
-link_target(${PROJECT_NAME})
-
+link_target(XRayDriver)
 if(WIN32)
-    link_target(${PROJECT_NAME}_GUI)
+    link_target(XRayDriver_GUI)
 endif()
 
 # ==================== Installation ====================
 set(RESOURCES_DIR ${CMAKE_SOURCE_DIR}/resources)
 set(ASSETS_DIR ${RESOURCES_DIR}/assets)
 
-install(TARGETS XRayDriver
+install(TARGETS
+    XRayDriver       
+    XRayDriver_GUI   
     RUNTIME DESTINATION bin
 )
 
 install(FILES
     ${ASSETS_DIR}/driver.ico
-    ${RESOURCES_DIR}/LICENSE.txt  
+    ${RESOURCES_DIR}/LICENSE.txt
     DESTINATION bin
 )
 
-
-# ==================== CPack Конфигурация ====================
+# ==================== CPack/NSIS ====================
 include(InstallRequiredSystemLibraries)
-set(CPACK_PACKAGE_NAME "XRAY Driver")
-set(CPACK_PACKAGE_VENDOR "Дедов Дмитрий")
-set(CPACK_RESOURCE_FILE_LICENSE "${RESOURCES_DIR}/LICENSE.txt")  
-set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\driver.ico")
+
+set(CPACK_PACKAGE_NAME    "XRAY Driver")
+set(CPACK_PACKAGE_VENDOR  "Дедов Дмитрий")
+set(CPACK_RESOURCE_FILE_LICENSE "${RESOURCES_DIR}/LICENSE.txt")
 
 if(WIN32)
-    set(CPACK_GENERATOR "NSIS")
-    set(CPACK_NSIS_MODIFY_PATH ON)
-    
-    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
-        CreateShortCut \\\"$DESKTOP\\\\Драйвер Динамической трубки.lnk\\\" \\
-            \\\"$INSTDIR\\\\bin\\\\XRayDriver_console.exe\\\" \\
-            \\\"\\\" \\
-            \\\"$INSTDIR\\\\bin\\\\driver.ico\\\"
-    ")
+    set(CPACK_GENERATOR         "NSIS")
+    set(CPACK_NSIS_MODIFY_PATH  ON)
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\driver.ico")
+    set(CPACK_NSIS_CREATE_ICONS
+        "CreateShortCut \\\"$DESKTOP\\\\Драйвер Динамической трубки.lnk\\\" \\\"$INSTDIR\\\\bin\\\\XRayDriver.exe\\\" \\\"\\\" \\\"$INSTDIR\\\\bin\\\\driver.ico\\\""
+        "CreateShortCut \\\"$DESKTOP\\\\Драйвер Динамической трубки – Консоль.lnk\\\" \\\"$INSTDIR\\\\bin\\\\XRayDriver_console.exe\\\" \\\"\\\" \\\"$INSTDIR\\\\bin\\\\driver.ico\\\""
+    )
 endif()
 
 include(CPack)
