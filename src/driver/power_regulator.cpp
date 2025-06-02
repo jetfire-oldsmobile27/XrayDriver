@@ -6,7 +6,8 @@ PowerRegulator::PowerRegulator(RecognitionProvider& recognizer, float Kp)
 
 float PowerRegulator::adjust_power(const cv::Mat& image, float current_power) {
     try {
-        float thickness = recognizer.estimate_body_thickness(image);
+        float thickness = 0.0f;
+        // float thickness = recognizer.estimate_body_thickness(image);
         return current_power + Kp * thickness;
     } catch (const cv::Exception& e) {
         jetfire27::Engine::Logging::Logger::GetInstance().Error(

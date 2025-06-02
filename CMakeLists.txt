@@ -17,19 +17,17 @@ if(WIN32)
     endif()
 endif()
 
-find_package(Boost 1.86 CONFIG REQUIRED COMPONENTS system filesystem json)
+find_package(Boost 1.83 CONFIG REQUIRED COMPONENTS system filesystem json)
 find_package(SQLite3 CONFIG REQUIRED)
 
-# Ищем OpenCV, просим нужные компоненты (dnn, imgproc, core)
 find_package(OpenCV REQUIRED COMPONENTS dnn imgproc core)
-
 find_package(spdlog REQUIRED)
 
 include_directories(
     include
     ${Boost_INCLUDE_DIRS}
     ${SQLite3_INCLUDE_DIRS}
-    ${OpenCV_INCLUDE_DIRS}    # <— лишним не будет, но обычно OpenCV_INCLUDE_DIRS задаётся самим find_package
+    ${OpenCV_INCLUDE_DIRS}   
 )
 
 file(GLOB_RECURSE SOURCES
@@ -72,8 +70,7 @@ function(link_target TARGET_NAME)
             Boost::json
             SQLite::SQLite3
             spdlog::spdlog
-
-            ${OpenCV_LIBS}    # линкуем именно переменную OpenCV_LIBS
+            ${OpenCV_LIBS}    
     )
 endfunction()
 

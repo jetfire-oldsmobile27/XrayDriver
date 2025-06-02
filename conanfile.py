@@ -7,7 +7,7 @@ class jetfire27EngineConan(ConanFile):
     version = "0.1"
     license = "LGPL"
     settings = "os", "compiler", "build_type", "arch"
-    requires = ["boost/1.86.0", "sqlite3/3.45.0", "spdlog/1.14.0"]
+    requires = ["boost/1.83.0", "sqlite3/3.45.0", "spdlog/1.14.0", "opencv/4.11.0"]
     generators = "CMakeToolchain", "CMakeDeps"
     exports_sources = (
         "include/*", "src/*", "CMakeLists.txt", "main.cpp",

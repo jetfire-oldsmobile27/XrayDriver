@@ -8,6 +8,72 @@
 #include <csignal>
 #include <atomic>
 
+#include "driver/recognition_provider.h"
+#include <iostream>
+#include <fstream>
+
+// Вспомогательная функция для записи PNG-байтов в файл:
+static void SavePNG(const std::vector<unsigned char>& png_bytes, const std::string& filename) {
+    std::ofstream ofs(filename, std::ios::binary);
+    ofs.write(reinterpret_cast<const char*>(png_bytes.data()), png_bytes.size());
+    ofs.close();
+    if (!ofs) {
+        std::cerr << "Ошибка при записи файла: " << filename << "\n";
+    }
+}
+
+int RecTest() {
+    try {
+        RecognitionProvider prov;
+        std::cout << "RecognitionProvider создан.\n";
+
+        // 1) Тест estimate_body_build()
+        std::cout << "Запуск estimate_body_build()...\n";
+        BodyBuild build = prov.estimate_body_build();
+        std::cout << "Результат: ";
+        if (build == BodyBuild::SMALL)  std::cout << "SMALL\n";
+        if (build == BodyBuild::MEDIUM) std::cout << "MEDIUM\n";
+        if (build == BodyBuild::LARGE)  std::cout << "LARGE\n";
+
+        // Сохраним 4 изображения этапов в файлы
+        auto imgs1 = prov.GetImages();
+        if (imgs1.size() == 4) {
+            for (size_t i = 0; i < imgs1.size(); ++i) {
+                std::string fname = "build_stage_" + std::to_string(i) + ".png";
+                SavePNG(imgs1[i], fname);
+                std::cout << "  → " << fname << "\n";
+            }
+        }
+
+        // 2) Тест estimate_body_thickness()
+        std::cout << "Запуск estimate_body_thickness()...\n";
+        float thickness = prov.estimate_body_thickness();
+        std::cout << "Примерная толщина (ширина пикселей): " << thickness << "\n";
+
+        // Сохраним следующие 4 изображения
+        auto imgs2 = prov.GetImages();
+        if (imgs2.size() == 4) {
+            for (size_t i = 0; i < imgs2.size(); ++i) {
+                std::string fname = "thickness_stage_" + std::to_string(i) + ".png";
+                SavePNG(imgs2[i], fname);
+                std::cout << "  → " << fname << "\n";
+            }
+        }
+
+        // 3) Запуск GetVideo (Esc для выхода)
+        std::cout << "Запуск видеопотока. Нажмите Esc, чтобы выйти.\n";
+        prov.GetVideo();
+        std::cout << "GetVideo завершён.\n";
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Ошибка: " << ex.what() << "\n";
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int main_function();
 
 #ifdef _WIN32
@@ -102,7 +168,9 @@ int main_function()
     log.Initialize(jetfire27::Engine::FilesystemUtils::GetLogDirectory());
     log.Info("============Starting new session of XRAY Dynamic Driver============");
     std::signal(SIGINT, out_handler);
-
+    
+    //!!!!!
+    RecTest();
     try
     {
         if (Daemonizer::IsSingleInstance())
