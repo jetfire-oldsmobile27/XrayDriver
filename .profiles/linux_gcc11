@@ -6,11 +6,12 @@ compiler.cppstd=gnu20
 compiler.libcxx=libstdc++11
 compiler.version=11
 os=Linux
-env.CC=/usr/bin/gcc-11
-env.CXX=/usr/bin/g++-11
+
 
 [buildenv]
 CFLAGS=-std=gnu11
+CC=/usr/bin/gcc-11
+CXX=/usr/bin/g++-11
 
 [tool_requires]
 !cmake/*: cmake/[>=3 <4]

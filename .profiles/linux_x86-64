@@ -10,5 +10,8 @@ os=Linux
 [buildenv]
 CFLAGS=-std=gnu11
 
+[replace_requires]
+libiconv/*: libiconv/1.18
+
 [tool_requires]
 !cmake/*: cmake/[>=3 <4]
