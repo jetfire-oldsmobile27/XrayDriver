@@ -1,20 +1,24 @@
-// Файл: main.qml
-
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtQuick.Controls.Material
+import QtQuick.Controls.Material 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
+import QtQuick.Shapes 1.15 as Shapes
 
 Window {
     id: window
-    width: 1280
-    height: 720
+    width: 1024
+    height: 768
     minimumWidth: 720
     minimumHeight: 800
     visible: true
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowMinMaxButtonsHint
+
+    // ---------- Material-свойства для всего окна --------------------
+    Material.theme: Material.Light          // Распространяется на все дочерние элементы :contentReference[oaicite:3]{index=3}
+    Material.accent: Material.Green         // Акцентный цвет :contentReference[oaicite:4]{index=4}
+    // ----------------------------------------------------------------
 
     property string buttonsColor: "#BB86FC"
     property string backgroundColor: "white"
@@ -23,17 +27,12 @@ Window {
     property string textColor: "#E0E0E0"
     property string hoverColor: "#3700B3"
 
-    Material.theme: Material.Light
-    Material.accent: Material.Green
-
-
     Action {
         id: closeHotKey
         text: "&Open"
         shortcut: "Ctrl+Q"
         onTriggered: window.close()
     }
-
     ToolButton { action: closeHotKey }
 
     Rectangle {
@@ -46,7 +45,9 @@ Window {
         border.width: 1
     }
 
-    // Верхняя кастомная панель
+    // ===================================================================
+    // ВЕРХНЯЯ ПАНЕЛЬ (без изменений)
+    // ===================================================================
     Rectangle {
         id: title
         x: (window.width - width) / 2
@@ -68,7 +69,6 @@ Window {
                            dragStartX = mouse.x
                            dragStartY = mouse.y
                        }
-
             onPositionChanged: (mouse) => {
                                    var dx = mouse.x - dragStartX
                                    var dy = mouse.y - dragStartY
@@ -96,7 +96,7 @@ Window {
                 anchors.rightMargin: 20
                 anchors.verticalCenter: titleRowLike.verticalCenter
 
-                // Кнопка "Свернуть"
+                // Кнопка «Свернуть»
                 Item {
                     id: minimizeButton
                     width: 30
@@ -108,7 +108,6 @@ Window {
                         width: minimizeButton.width * 0.8
                         height: 3
                         color: window.buttonsColor
-
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -119,7 +118,7 @@ Window {
                     }
                 }
 
-                // Кнопка "Максимизировать/Свернуть"
+                // Кнопка «Максимизировать/Свернуть»
                 Item {
                     id: maxScaleButton
                     width: 30
@@ -132,31 +131,28 @@ Window {
                         source: "qrc:/fullscreen.svg"
                         anchors.centerIn: parent
                     }
-
                     Image {
                         id: defaultScreenStat
                         visible: !maxScaleButton.isFullscreen
                         source: "qrc:/fullscreen_exit.svg"
                         anchors.centerIn: parent
                     }
-
                     MouseArea {
                         hoverEnabled: true
                         anchors.fill: maxScaleButton
-
                         onClicked: {
                             if (!maxScaleButton.isFullscreen) {
-                                window.visibility = Window.FullScreen;
-                                maxScaleButton.isFullscreen = true;
+                                window.visibility = Window.FullScreen
+                                maxScaleButton.isFullscreen = true
                             } else {
-                                window.visibility = Window.Windowed;
-                                maxScaleButton.isFullscreen = false;
+                                window.visibility = Window.Windowed
+                                maxScaleButton.isFullscreen = false
                             }
                         }
                     }
                 }
 
-                // Кнопка "Закрыть"
+                // Кнопка «Закрыть»
                 Item {
                     id: closeButton
                     width: 30
@@ -166,7 +162,6 @@ Window {
                         source: "qrc:/close.svg"
                         anchors.centerIn: parent
                     }
-
                     MouseArea {
                         anchors.fill: parent
                         onClicked: window.close()
@@ -176,54 +171,31 @@ Window {
         }
     }
 
-
-    // Базовый URL сервера
+    // ===================================================================
+    // СВОЙСТВА ДЛЯ ДАННЫХ (без изменений)
+    // ===================================================================
     property string baseUrl: "http://localhost:8080"
-
-    // Хранение данных
     property var statusData: ({})
     property var statsData: ({})
     property var configData: ({})
     property var exposureLogs: ([])
 
-    // Теперь просто одна строка с текстом всего лога
     property string systemLogText: ""
 
-    // ------------------------------------------------------------------
-    //  Новые свойства для показа ошибки
-    // ------------------------------------------------------------------
     property string errorMessage: ""
     property bool showError: false
-
-    // ------------------------------------------------------------------
-    //  Таймер авто-скрытия уведомления об ошибке
-    // ------------------------------------------------------------------
     Timer {
         id: hideErrorTimer
-        interval: 3000    // 3 секунды
-        repeat: false
-        onTriggered: {
-            // Когда таймер сработал, плавно скрываем прямоугольник
-            window.showError = false;
-        }
+        interval: 3000; repeat: false
+        onTriggered: window.showError = false
     }
 
-    // ------------------------------------------------------------------
-    //  Новые свойства для показа уведомлений об успехе
-    // ------------------------------------------------------------------
     property string successMessage: ""
     property bool showSuccess: false
-
-    // ------------------------------------------------------------------
-    //  Таймер авто-скрытия уведомления об успехе
-    // ------------------------------------------------------------------
     Timer {
         id: hideSuccessTimer
-        interval: 3000    // 3 секунды
-        repeat: false
-        onTriggered: {
-            window.showSuccess = false;
-        }
+        interval: 3000; repeat: false
+        onTriggered: window.showSuccess = false
     }
 
     ColumnLayout {
@@ -231,9 +203,10 @@ Window {
         width: visibleWindow.width
         height: visibleWindow.height - title.height
         anchors.top: title.bottom
-        //anchors.fill: parent
 
-        // Вкладки
+        // ===================================================================
+        // TAB-BAR И СОДЕРЖИМОЕ ВКЛАДОК
+        // ===================================================================
         TabBar {
             id: tabBar
             Layout.fillWidth: true
@@ -242,73 +215,126 @@ Window {
             TabButton { text: "Настройки" }
             TabButton { text: "Журналы" }
         }
-
-        // Содержимое вкладок
         StackLayout {
             id: stackLayout
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: tabBar.currentIndex
 
-            /***********************************************************************
-             * 1. Панель управления (Состояние системы и статистика)
-             ***********************************************************************/
+            // *******************************************************************
+            // 1. ПАНЕЛЬ УПРАВЛЕНИЯ
+            // *******************************************************************
             ScrollView {
                 ColumnLayout {
                     width: parent.width
                     spacing: 20
 
-                    GroupBox {
-                        title: "Состояние системы"
+                    //-----------------------------------------------
+                    // Карточка: состояние системы (Frame с elevation)
+                    //-----------------------------------------------
+                    Frame {
+                        // Используем Frame как «плитку-карточку» с тенью и скруглением :contentReference[oaicite:5]{index=5}
                         width: parent.width - 40
+                        Material.elevation: 4             // уровень тени :contentReference[oaicite:6]{index=6}
+                        background: Rectangle {
+                            color: Material.background      // фон из темы :contentReference[oaicite:7]{index=7}
+                            radius: 8                        // скруглённые углы
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
-                            Text { text: "Напряжение (кВ): " + (statusData.voltage_kv || "n/a") }
-                            Text { text: "Ток (мА): " + (statusData.current_ma || "n/a") }
-                            Text { text: "Экспозиция активна: " + (statusData.exposure_active || false) }
-                            Text { text: "Нить накала включена: " + (statusData.filament_on || false) }
-                            Text { text: "Состояние ошибки: " + (statusData.error_state || "") }
-                            Text { text: "Последняя ошибка: " + (statusData.last_error || "Нет") }
-                            Button {
-                                text: "Обновить статус"
-                                onClicked: fetchStatus()
+                            Text {
+                                text: "Состояние системы"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground      // цвет текста из темы :contentReference[oaicite:8]{index=8}
+                            }
+                            ColumnLayout {
+                                spacing: 8
+                                Text { text: "Напряжение (кВ): " + (statusData.voltage_kv || "n/a") }
+                                Text { text: "Ток (мА): " + (statusData.current_ma || "n/a") }
+                                Text { text: "Экспозиция активна: " + (statusData.exposure_active || false) }
+                                Text { text: "Нить накала включена: " + (statusData.filament_on || false) }
+                                Text { text: "Состояние ошибки: " + (statusData.error_state || "") }
+                                Text { text: "Последняя ошибка: " + (statusData.last_error || "Нет") }
+                                Button {
+                                    text: "Обновить статус"
+                                    Material.elevation: 2           // тень на кнопке
+                                    onClicked: fetchStatus()
+                                }
                             }
                         }
                     }
 
-                    GroupBox {
-                        title: "Статистика"
+                    //-----------------------------------------------
+                    // Карточка: статистика (Frame с elevation)
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
-                            Text { text: "Всего экспозиций: " + (statsData.total_exposures || "0") }
-                            Text { text: "Время последней ошибки: " + (statsData.last_error || "Нет") }
-                            Button {
-                                text: "Обновить статистику"
-                                onClicked: fetchStats()
+                            Text {
+                                text: "Статистика"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
+                            }
+                            ColumnLayout {
+                                spacing: 8
+                                Text { text: "Всего экспозиций: " + (statsData.total_exposures || "0") }
+                                Text { text: "Время последней ошибки: " + (statsData.last_error || "Нет") }
+                                Button {
+                                    text: "Обновить статистику"
+                                    Material.elevation: 2
+                                    onClicked: fetchStats()
+                                }
                             }
                         }
                     }
-                }
-                Component.onCompleted: {
-                    fetchStatus()
-                    fetchStats()
+
+                    Component.onCompleted: {
+                        fetchStatus()
+                        fetchStats()
+                    }
                 }
             }
 
-            /***********************************************************************
-             * 2. Управление (Экспозиция, Напряжение, Ток, Авария, Драйвер)
-             ***********************************************************************/
+            // *******************************************************************
+            // 2. УПРАВЛЕНИЕ
+            // *******************************************************************
             ScrollView {
                 ColumnLayout {
                     width: parent.width
                     spacing: 20
 
-                    GroupBox {
-                        title: "Экспозиция"
+                    //-----------------------------------------------
+                    // Карточка: Экспозиция
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
+                            Text {
+                                text: "Экспозиция"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
+                            }
                             RowLayout {
                                 spacing: 10
                                 Text { text: "Длительность (мс):" }
@@ -316,6 +342,12 @@ Window {
                                     id: durationField
                                     placeholderText: "1000"
                                     inputMethodHints: Qt.ImhDigitsOnly
+                                    Material.elevation: 1           // тень для TextField
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: Material.background
+                                        border.color: Material.color(Material.Primary, Material.Mid)
+                                    }
                                 }
                             }
                             RowLayout {
@@ -325,26 +357,48 @@ Window {
                                     id: modeCombo
                                     model: ["тестовый", "стандартный", "импульсный"]
                                     currentIndex: 0
+                                    Material.elevation: 1
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: Material.background
+                                        border.color: Material.color(Material.Primary, Material.Mid)
+                                    }
                                 }
                             }
                             Button {
                                 text: "Начать экспозицию"
+                                Material.elevation: 2
                                 onClicked: {
                                     var params = {
                                         "duration": parseInt(durationField.text),
                                         "mode": modeCombo.currentText
-                                    };
-                                    sendPost("/api/exposure/now", params);
+                                    }
+                                    sendPost("/api/exposure/now", params)
                                 }
                             }
                         }
                     }
 
-                    GroupBox {
-                        title: "Напряжение"
+                    //-----------------------------------------------
+                    // Карточка: Напряжение
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
+                            Text {
+                                text: "Напряжение"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
+                            }
                             RowLayout {
                                 spacing: 10
                                 Text { text: "Напряжение (кВ):" }
@@ -352,23 +406,45 @@ Window {
                                     id: voltageField
                                     placeholderText: "50"
                                     inputMethodHints: Qt.ImhDigitsOnly
+                                    Material.elevation: 1
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: Material.background
+                                        border.color: Material.color(Material.Primary, Material.Mid)
+                                    }
                                 }
                             }
                             Button {
                                 text: "Установить напряжение"
+                                Material.elevation: 2
                                 onClicked: {
-                                    var params = { "voltage": parseInt(voltageField.text) };
-                                    sendPost("/api/voltage", params);
+                                    var params = { "voltage": parseInt(voltageField.text) }
+                                    sendPost("/api/voltage", params)
                                 }
                             }
                         }
                     }
 
-                    GroupBox {
-                        title: "Ток"
+                    //-----------------------------------------------
+                    // Карточка: Ток
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
+                            Text {
+                                text: "Ток"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
+                            }
                             RowLayout {
                                 spacing: 10
                                 Text { text: "Ток (мА):" }
@@ -376,77 +452,153 @@ Window {
                                     id: currentField
                                     placeholderText: "0.1"
                                     inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                    Material.elevation: 1
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: Material.background
+                                        border.color: Material.color(Material.Primary, Material.Mid)
+                                    }
                                 }
                             }
                             Button {
                                 text: "Установить ток"
+                                Material.elevation: 2
                                 onClicked: {
-                                    var params = { "current": parseFloat(currentField.text) };
-                                    sendPost("/api/current", params);
+                                    var params = { "current": parseFloat(currentField.text) }
+                                    sendPost("/api/current", params)
                                 }
                             }
                         }
                     }
 
-                    GroupBox {
-                        title: "Аварийная остановка и драйвер"
+                    //-----------------------------------------------
+                    // Карточка: Аварийная остановка и драйвер
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
-                            Button {
-                                text: "Аварийная остановка"
-                                onClicked: sendPost("/api/emergency_stop", {})
+                            Text {
+                                text: "Аварийная остановка и драйвер"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
                             }
-                            Button {
-                                text: "Перезапустить драйвер"
-                                onClicked: sendPost("/api/driver/restart", {})
+                            RowLayout {
+                                spacing: 10
+                                Button {
+                                    text: "Аварийная остановка"
+                                    Material.elevation: 2
+                                    onClicked: sendPost("/api/emergency_stop", {})
+                                }
+                                Button {
+                                    text: "Перезапустить драйвер"
+                                    Material.elevation: 2
+                                    onClicked: sendPost("/api/driver/restart", {})
+                                }
                             }
                         }
                     }
 
-                    GroupBox {
-                        title: "Тест соединения"
+                    //-----------------------------------------------
+                    // Карточка: Тест соединения
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
+                            Text {
+                                text: "Тест соединения"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
+                            }
                             RowLayout {
                                 spacing: 10
                                 Button {
                                     text: "Проверить соединение"
+                                    Material.elevation: 2
                                     onClicked: fetchConnectionTest()
                                 }
-                                Text { id: connectionResult; text: "" }
+                                Text {
+                                    id: connectionResult
+                                    text: ""
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
                     }
                 }
             }
 
-            /***********************************************************************
-             * 3. Настройки (Просмотр и сохранение настроек: COM-порт)
-             ***********************************************************************/
+            // *******************************************************************
+            // 3. НАСТРОЙКИ
+            // *******************************************************************
             ScrollView {
                 ColumnLayout {
                     width: parent.width
                     spacing: 20
 
-                    GroupBox {
-                        title: "Настройки рентгена"
+                    //-----------------------------------------------
+                    // Карточка: Настройки рентгена
+                    //-----------------------------------------------
+                    Frame {
                         width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
-                            Text { text: "COM-порт:" }
-                            TextField { id: comPortField; placeholderText: "напр. COM1 или /dev/ttyUSB0" }
-                            Button {
-                                text: "Загрузить настройки"
-                                onClicked: fetchConfig()
+                            Text {
+                                text: "Настройки рентгена"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
                             }
-                            Button {
-                                text: "Сохранить настройки"
-                                onClicked: {
-                                    var obj = {};
-                                    obj["com_port"] = comPortField.text;
-                                    sendPost("/api/config", obj);
+                            Text { text: "COM-порт:" }
+                            TextField {
+                                id: comPortField
+                                placeholderText: "напр. COM1 или /dev/ttyUSB0"
+                                Material.elevation: 1
+                                background: Rectangle {
+                                    radius: 4
+                                    color: Material.background
+                                    border.color: Material.color(Material.Primary, Material.Mid)
+                                }
+                            }
+                            RowLayout {
+                                spacing: 10
+                                Button {
+                                    text: "Загрузить настройки"
+                                    Material.elevation: 2
+                                    onClicked: fetchConfig()
+                                }
+                                Button {
+                                    text: "Сохранить настройки"
+                                    Material.elevation: 2
+                                    onClicked: {
+                                        var obj = {}
+                                        obj["com_port"] = comPortField.text
+                                        sendPost("/api/config", obj)
+                                    }
                                 }
                             }
                         }
@@ -454,9 +606,9 @@ Window {
                 }
             }
 
-            /***********************************************************************
-             * 4. Журналы (Журнал экспозиций + Журнал системы)
-             ***********************************************************************/
+            // *******************************************************************
+            // 4. ЖУРНАЛЫ
+            // *******************************************************************
             ScrollView {
                 width: parent.width
                 ColumnLayout {
@@ -464,93 +616,187 @@ Window {
                     Layout.fillWidth: true
                     Layout.margins: 20
 
-                    /****************************************************************
-                     * 4.1 Журнал экспозиций
-                     ****************************************************************/
-                    GroupBox {
-                        title: "Журнал экспозиций"
-                        Layout.fillWidth: true
-                        Layout.margins: 0
+                    //---------------------------------------------------------------
+                    // Журнал экспозиций: «плитки»-строки с elevation
+                    //---------------------------------------------------------------
+                    Frame {
+                        //title: "Журнал экспозиций"  // хотя GroupBox уже был, здесь демонстрируем Frame как карточку
+                        width: parent.width
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
-                            Button {
-                                text: "Загрузить журнал экспозиций"
-                                onClicked: fetchExposureLogs()
+                            RowLayout {
+                                spacing: 10
+                                Button {
+                                    text: "Загрузить журнал экспозиций"
+                                    Material.elevation: 2
+                                    onClicked: fetchExposureLogs()
+                                }
                             }
                             ListView {
                                 id: exposureListView
                                 Layout.fillWidth: true
                                 height: 200
                                 model: exposureLogs
-                                delegate: Rectangle {
+                                delegate: Frame {
+                                    // Каждая запись — «плитка»-строка с elevation :contentReference[oaicite:9]{index=9}
                                     width: parent.width
-                                    height: 30
-                                    Text {
-                                        text: modelData.timestamp + ": " +
-                                              modelData.voltage + "кВ, " +
-                                              modelData.current + "мА, " +
-                                              modelData.duration + "мс, " +
-                                              modelData.mode
-                                        font.pixelSize: 14
+                                    height: 40
+                                    Material.elevation: 1
+                                    background: Rectangle {
+                                        color: Material.color(Material.Background, Material.Light)
+                                        radius: 4
+                                    }
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        Text {
+                                            text: modelData.timestamp + ": " +
+                                                  modelData.voltage + "кВ, " +
+                                                  modelData.current + "мА, " +
+                                                  modelData.duration + "мс, " +
+                                                  modelData.mode
+                                            font.pixelSize: 14
+                                            color: Material.foreground
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    /****************************************************************
-                     * 4.2 Журнал системы
-                     ****************************************************************/
-                    GroupBox {
-                        title: "Журнал системы"
-                        Layout.fillWidth: true
-                        Layout.margins: 0
-
+                    // ===================================================================
+                    // Журнал системы (исправленный блок)
+                    // ===================================================================
+                    Frame {
+                        width: parent.width - 40
+                        Material.elevation: 4
+                        background: Rectangle {
+                            color: Material.background
+                            radius: 8
+                        }
                         ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
                             spacing: 10
-                            Button {
-                                text: "Загрузить текущий лог-файл драйвера"
-                                onClicked: fetchSystemLogFile()
-                            }
-                            ScrollView {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                Layout.preferredHeight: 300
 
-                                TextArea {
-                                    id: systemLogArea
-                                    text: systemLogText
-                                    readOnly: true
-                                    wrapMode: TextArea.NoWrap
-                                    font.family: "monospace"
-                                    font.pixelSize: 13
+                            // Заголовок вместо title-поля у Frame
+                            Text {
+                                text: "Журнал системы"
+                                font.pointSize: 16
+                                font.bold: true
+                                color: Material.foreground
+                            }
+
+                            // Кнопка для загрузки лог-файла
+                            RowLayout {
+                                spacing: 10
+                                Button {
+                                    text: "Загрузить текущий лог-файл драйвера"
+                                    Material.elevation: 2
+                                    onClicked: fetchSystemLogFile()
+                                }
+                            }
+
+                            Item {
+                                id: logContainer
+                                width: parent.width
+                                height: 300
+
+                                // Здесь рисуем «обтекаемый» фон с волнообразным низом
+                                /*Shapes.Shape {
+                                    anchors.fill: parent
+
+                                    Shapes.ShapePath {
+                                        strokeWidth: 0
+                                        fillColor: Material.background
+
+                                        // Используем Path, PathLine, PathQuad из QtQuick 2.15
+                                        Path {
+                                            // Начало в левом верхнем углу
+                                            startX: 0
+                                            startY: 0
+
+                                            // Опускаемся вниз до y = height - 20
+                                            PathLine {
+                                                x: 0
+                                                y: parent.height - 20
+                                            }
+
+                                            // Рисуем кривую (квадратичный сегмент) до середины низа
+                                            PathQuad {
+                                                x: parent.width / 2
+                                                y: parent.height
+                                                controlX: parent.width / 4
+                                                controlY: parent.height - 30
+                                            }
+
+                                            // Поднимаемся вверх до правого «низка» y = height - 20
+                                            PathLine {
+                                                x: parent.width
+                                                y: parent.height - 20
+                                            }
+
+                                            // Поднимаемся вверх до правого верхнего угла
+                                            PathLine {
+                                                x: parent.width
+                                                y: 0
+                                            }
+
+                                            // Замыкаем путь обратно к начальной точке
+                                            PathLine {
+                                                x: 0
+                                                y: 0
+                                            }
+                                        }
+                                    }
+                                }
+
+                                /*/
+                                // Поверх Shape располагаем ScrollView с TextArea
+                                ScrollView {
+                                    anchors.fill: parent
+                                    clip: true
+
+                                    TextArea {
+                                        id: systemLogArea
+                                        text: systemLogText
+                                        readOnly: true
+                                        wrapMode: TextArea.NoWrap
+                                        font.family: "monospace"
+                                        font.pixelSize: 13
+                                        anchors.fill: parent
+                                        padding: 8
+                                        background: Rectangle {
+                                            color: "transparent"
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-
         }
     }
 
-    // ------------------------------------------------------------------
-    //  Плавающее уведомление об успешной операции (вверху)
-    // ------------------------------------------------------------------
+    // ===================================================================
+    // ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (без изменений)
+    // ===================================================================
     Rectangle {
         id: successPopup
-        // Когда showSuccess == true, height плавно становится popupHeight, иначе — 0.
         height: window.showSuccess ? popupHeight : 0
         width: parent.width
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-
-        // Зеленый цвет для успешных операций
         color: window.showSuccess ? "#4CAF50" : "transparent"
         radius: 8
         opacity: showSuccess ? 0.95 : 0.0
-
-        // Параметры анимации
         Behavior on height {
             NumberAnimation { duration: 250; easing.type: Easing.InOutQuad }
         }
@@ -560,15 +806,9 @@ Window {
         Behavior on opacity {
             NumberAnimation { duration: 200; easing.type: Easing.InOutQuad }
         }
-
-        // Фиксированная «целевая» высота
         readonly property int popupHeight: 50
-
-        // Внутренние отступы
         readonly property int paddingHorizontal: 10
         readonly property int paddingVertical: 5
-
-        // Оборачиваем текст в ScrollView
         ScrollView {
             id: successScrollArea
             anchors {
@@ -580,7 +820,6 @@ Window {
                 bottomMargin: successPopup.paddingVertical
             }
             clip: true
-
             Text {
                 id: successText
                 text: window.successMessage
@@ -592,23 +831,15 @@ Window {
         }
     }
 
-    // ------------------------------------------------------------------
-    //  Плавающее уведомление об ошибке (внизу, «скрыто» изначально)
-    // ------------------------------------------------------------------
     Rectangle {
         id: errorPopup
-        // Когда showError == true, height плавно становится popupHeight, иначе — 0.
         height: window.showError ? popupHeight : 0
         width: parent.width
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-
-        // Цвет «переливается» из полностью прозрачного в насыщенный красный
         color: window.showError ? "#D32F2F" : "transparent"
         radius: 8
         opacity: showError ? 0.95 : 0.0
-
-        // Параметры анимации: поведение при смене height и color
         Behavior on height {
             NumberAnimation { duration: 250; easing.type: Easing.InOutQuad }
         }
@@ -618,15 +849,9 @@ Window {
         Behavior on opacity {
             NumberAnimation { duration: 200; easing.type: Easing.InOutQuad }
         }
-
-        // Фиксированная «целевая» высота (когда уведомление полностью показано)
         readonly property int popupHeight: 50
-
-        // Внутренний отступ, чтобы текст не упирался в края
         readonly property int paddingHorizontal: 10
         readonly property int paddingVertical: 5
-
-        // Оборачиваем текст в ScrollView, чтобы длинные сообщения можно было прокручивать
         ScrollView {
             id: scrollArea
             anchors {
@@ -638,7 +863,6 @@ Window {
                 bottomMargin: errorPopup.paddingVertical
             }
             clip: true
-
             Text {
                 id: errorText
                 text: window.errorMessage
@@ -650,244 +874,231 @@ Window {
         }
     }
 
-    /***************************************************************************
-     *  Общие JS-функции для сетевых запросов (МОДИФИЦИРОВАННЫЕ)
-     ***************************************************************************/
-
-    // Универсальная отправка POST-запроса с обработкой ошибок и успехов
+    // ===================================================================
+    // СЕТЕВЫЕ ФУНКЦИИ (без изменений)
+    // ===================================================================
     function sendPost(path, data) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", baseUrl + path);
-        xhr.setRequestHeader("Content-Type", "application/json");
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", baseUrl + path)
+        xhr.setRequestHeader("Content-Type", "application/json")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    // Показываем уведомление об успехе
                     try {
-                        var resp = JSON.parse(xhr.responseText);
+                        var resp = JSON.parse(xhr.responseText)
                         if (resp.status && resp.status === "success") {
-                            window.successMessage = "Операция выполнена успешно!";
-                            window.showSuccess = true;
-                            hideSuccessTimer.restart();
+                            window.successMessage = "Операция выполнена успешно!"
+                            window.showSuccess = true
+                            hideSuccessTimer.restart()
                         }
                     } catch (e) {
-                        window.successMessage = "Операция выполнена успешно!";
-                        window.showSuccess = true;
-                        hideSuccessTimer.restart();
+                        window.successMessage = "Операция выполнена успешно!"
+                        window.showSuccess = true
+                        hideSuccessTimer.restart()
                     }
                 } else {
-                    // Обработка ошибок (как раньше)
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
-                        window.errorMessage = respObj.error || "Неизвестная ошибка";
+                        var respObj = JSON.parse(xhr.responseText)
+                        window.errorMessage = respObj.error || "Неизвестная ошибка"
                     } catch (e) {
-                        window.errorMessage = "Ошибка ответа от сервера";
+                        window.errorMessage = "Ошибка ответа от сервера"
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
+                    window.showError = true
+                    hideErrorTimer.restart()
                 }
             }
         }
-        xhr.send(JSON.stringify(data));
+        xhr.send(JSON.stringify(data))
     }
 
-    // GET /api/connection/test с обработкой успехов и ошибок
     function fetchConnectionTest() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/connection/test");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", baseUrl + "/api/connection/test")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
                     try {
-                        var resp = JSON.parse(xhr.responseText);
+                        var resp = JSON.parse(xhr.responseText)
                         if (resp.status === "OK") {
-                            connectionResult.text = "OK, " + resp.response_time + " мс";
-                            // Показываем уведомление об успехе
-                            window.successMessage = "Соединение установлено!";
-                            window.showSuccess = true;
-                            hideSuccessTimer.restart();
+                            connectionResult.text = "OK, " + resp.response_time + " мс"
+                            window.successMessage = "Соединение установлено!"
+                            window.showSuccess = true
+                            hideSuccessTimer.restart()
                         } else {
-                            window.errorMessage = "Ошибка соединения: ответ сервера = ERROR, время = " + resp.response_time + " мс";
-                            window.showError = true;
-                            hideErrorTimer.restart();
-                            connectionResult.text = "ERROR";
+                            window.errorMessage = "Ошибка соединения: ответ = ERROR, время = " + resp.response_time + " мс"
+                            window.showError = true
+                            hideErrorTimer.restart()
+                            connectionResult.text = "ERROR"
                         }
                     } catch (e) {
-                        window.errorMessage = "Неправильный формат ответа от /api/connection/test";
-                        window.showError = true;
-                        hideErrorTimer.restart();
-                        connectionResult.text = "Ошибка";
+                        window.errorMessage = "Неправильный формат ответа от /api/connection/test"
+                        window.showError = true
+                        hideErrorTimer.restart()
+                        connectionResult.text = "Ошибка"
                     }
                 } else {
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
+                        var respObj = JSON.parse(xhr.responseText)
                         if (respObj.error) {
-                            window.errorMessage = respObj.error;
+                            window.errorMessage = respObj.error
                         } else {
-                            window.errorMessage = "Неизвестная ошибка со стороны драйвера: " + xhr.responseText;
+                            window.errorMessage = "Неизвестная ошибка со стороны драйвера: " + xhr.responseText
                         }
                     } catch (e) {
-                        window.errorMessage = "Ошибка проверки соединения со стороны драйвера: HTTP " + xhr.status;
+                        window.errorMessage = "Ошибка проверки соединения: HTTP " + xhr.status
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
-                    connectionResult.text = "Ошибка";
+                    window.showError = true
+                    hideErrorTimer.restart()
+                    connectionResult.text = "Ошибка"
                 }
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
-    // GET /api/status с обработкой успехов и ошибок
     function fetchStatus() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/status");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", baseUrl + "/api/status")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    statusData = JSON.parse(xhr.responseText);
-                    // Показываем уведомление об успехе
-                    window.successMessage = "Статус обновлен";
-                    window.showSuccess = true;
-                    hideSuccessTimer.restart();
+                    statusData = JSON.parse(xhr.responseText)
+                    window.successMessage = "Статус обновлен"
+                    window.showSuccess = true
+                    hideSuccessTimer.restart()
                 } else {
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
+                        var respObj = JSON.parse(xhr.responseText)
                         if (respObj.error) {
-                            window.errorMessage = respObj.error;
+                            window.errorMessage = respObj.error
                         } else {
-                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText;
+                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText
                         }
                     } catch (e) {
-                        window.errorMessage = "Ошибка загрузки статуса: код " + xhr.status;
+                        window.errorMessage = "Ошибка загрузки статуса: код " + xhr.status
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
+                    window.showError = true
+                    hideErrorTimer.restart()
                 }
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
-    // GET /api/stats с обработкой ошибок (успешное обновление не требует уведомления)
     function fetchStats() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/stats");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", baseUrl + "/api/stats")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    statsData = JSON.parse(xhr.responseText);
-                    window.successMessage = "Статистика обновлена";
-                    window.showSuccess = true;
-                    hideSuccessTimer.restart();
+                    statsData = JSON.parse(xhr.responseText)
+                    window.successMessage = "Статистика обновлена"
+                    window.showSuccess = true
+                    hideSuccessTimer.restart()
                 } else {
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
+                        var respObj = JSON.parse(xhr.responseText)
                         if (respObj.error) {
-                            window.errorMessage = respObj.error;
+                            window.errorMessage = respObj.error
                         } else {
-                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText;
+                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText
                         }
                     } catch (e) {
-                        window.errorMessage = "Ошибка загрузки статистики: код " + xhr.status;
+                        window.errorMessage = "Ошибка загрузки статистики: код " + xhr.status
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
+                    window.showError = true
+                    hideErrorTimer.restart()
                 }
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
-    // GET /api/config с обработкой успехов и ошибок
     function fetchConfig() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/config");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", baseUrl + "/api/config")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    configData = JSON.parse(xhr.responseText);
-                    comPortField.text = configData.com_port || "";
-                    window.successMessage = "Настройки загружены";
-                    window.showSuccess = true;
-                    hideSuccessTimer.restart();
+                    configData = JSON.parse(xhr.responseText)
+                    comPortField.text = configData.com_port || ""
+                    window.successMessage = "Настройки загружены"
+                    window.showSuccess = true
+                    hideSuccessTimer.restart()
                 } else {
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
+                        var respObj = JSON.parse(xhr.responseText)
                         if (respObj.error) {
-                            window.errorMessage = respObj.error;
+                            window.errorMessage = respObj.error
                         } else {
-                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText;
+                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText
                         }
                     } catch (e) {
-                        window.errorMessage = "Ошибка загрузки настроек: код " + xhr.status;
+                        window.errorMessage = "Ошибка загрузки настроек: код " + xhr.status
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
+                    window.showError = true
+                    hideErrorTimer.restart()
                 }
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
-    // GET /api/logs/exposure с обработкой успехов и ошибок
     function fetchExposureLogs() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/logs/exposure");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", baseUrl + "/api/logs/exposure")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    exposureLogs = JSON.parse(xhr.responseText);
-                    window.successMessage = "Журнал экспозиций загружен";
-                    window.showSuccess = true;
-                    hideSuccessTimer.restart();
+                    exposureLogs = JSON.parse(xhr.responseText)
+                    window.successMessage = "Журнал экспозиций загружен"
+                    window.showSuccess = true
+                    hideSuccessTimer.restart()
                 } else {
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
+                        var respObj = JSON.parse(xhr.responseText)
                         if (respObj.error) {
-                            window.errorMessage = respObj.error;
+                            window.errorMessage = respObj.error
                         } else {
-                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText;
+                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText
                         }
                     } catch (e) {
-                        window.errorMessage = "Ошибка загрузки журнала экспозиций: код " + xhr.status;
+                        window.errorMessage = "Ошибка загрузки журнала экспозиций: код " + xhr.status
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
+                    window.showError = true
+                    hideErrorTimer.restart()
                 }
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
-    // GET /api/logs/system с обработкой успехов и ошибок
     function fetchSystemLogFile() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl + "/api/logs/system");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", baseUrl + "/api/logs/system")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    systemLogText = xhr.responseText;
-                    window.successMessage = "Журнал системы загружен";
-                    window.showSuccess = true;
-                    hideSuccessTimer.restart();
+                    systemLogText = xhr.responseText
+                    window.successMessage = "Журнал системы загружен"
+                    window.showSuccess = true
+                    hideSuccessTimer.restart()
                 } else {
                     try {
-                        var respObj = JSON.parse(xhr.responseText);
+                        var respObj = JSON.parse(xhr.responseText)
                         if (respObj.error) {
-                            window.errorMessage = respObj.error;
+                            window.errorMessage = respObj.error
                         } else {
-                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText;
+                            window.errorMessage = "Неизвестная ошибка: " + xhr.responseText
                         }
                     } catch (e) {
-                        window.errorMessage = "Ошибка загрузки лог-файла: код " + xhr.status;
+                        window.errorMessage = "Ошибка загрузки лог-файла: код " + xhr.status
                     }
-                    window.showError = true;
-                    hideErrorTimer.restart();
+                    window.showError = true
+                    hideErrorTimer.restart()
                 }
             }
         }
-        xhr.send();
+        xhr.send()
     }
-
 }

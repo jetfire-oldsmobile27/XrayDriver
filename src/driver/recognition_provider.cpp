@@ -8,10 +8,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 RecognitionProvider::RecognitionProvider() {
+    std::cout << "Trying to open camera 0..." << std::endl;
     cap.open(0);
     if (!cap.isOpened()) {
+        std::cerr << "RecognitionProvider: не удалось открыть камеру 0" << std::endl;
         throw std::runtime_error("RecognitionProvider: не удалось открыть камеру 0");
     }
+    std::cout << "Camera opened successfully." << std::endl;
 }
 
 RecognitionProvider::~RecognitionProvider() {
