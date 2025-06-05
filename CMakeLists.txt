@@ -49,7 +49,7 @@ set_target_properties(XRayDriver PROPERTIES
 )
 
 if(WIN32)
-    # ----------------- GUI-таргет только для Windows -----------------
+    # ----------------- Только для Windows -----------------
     add_executable(XRayDriver_GUI WIN32
         ${SOURCES}
         ${RESOURCE_FILE}

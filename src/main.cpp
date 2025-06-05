@@ -170,7 +170,7 @@ int main_function()
     std::signal(SIGINT, out_handler);
     
     //!!!!!
-    RecTest();
+    //RecTest();
     try
     {
         if (Daemonizer::IsSingleInstance())

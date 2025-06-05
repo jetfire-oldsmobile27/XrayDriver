@@ -1,6 +1,7 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps
 from conan.tools.system.package_manager import Apt, Brew, Chocolatey
+import platform
 
 class jetfire27EngineConan(ConanFile):
     name = "jetfire27_engine"
@@ -12,9 +13,10 @@ class jetfire27EngineConan(ConanFile):
     exports_sources = (
         "include/*", "src/*", "CMakeLists.txt", "main.cpp",
     )
-    default_options = {
-        "libiconv/*:shared": True,
-    }
+    if (platform.system() == 'Linux'):
+        default_options = {
+            "libiconv/*:shared": True,
+        }
 
     def layout(self):
         pass

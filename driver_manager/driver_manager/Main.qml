@@ -27,6 +27,8 @@ Window {
     property string textColor: "#E0E0E0"
     property string hoverColor: "#3700B3"
 
+    WindowControls {}
+
     Action {
         id: closeHotKey
         text: "&Open"
@@ -684,8 +686,6 @@ Window {
                             anchors.fill: parent
                             anchors.margins: 12
                             spacing: 10
-
-                            // Заголовок вместо title-поля у Frame
                             Text {
                                 text: "Журнал системы"
                                 font.pointSize: 16
@@ -703,78 +703,23 @@ Window {
                                 }
                             }
 
-                            Item {
-                                id: logContainer
-                                width: parent.width
-                                height: 300
+                            // ИСПРАВЛЕННАЯ СЕКЦИЯ: ScrollView и TextArea
+                            ScrollView {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
 
-                                // Здесь рисуем «обтекаемый» фон с волнообразным низом
-                                /*Shapes.Shape {
-                                    anchors.fill: parent
+                                TextArea {
+                                    id: systemLogArea
+                                    text: window.systemLogText
+                                    readOnly: true
+                                    wrapMode: TextArea.NoWrap
+                                    font.family: "monospace"
+                                    font.pixelSize: 13
 
-                                    Shapes.ShapePath {
-                                        strokeWidth: 0
-                                        fillColor: Material.background
-
-                                        // Используем Path, PathLine, PathQuad из QtQuick 2.15
-                                        Path {
-                                            // Начало в левом верхнем углу
-                                            startX: 0
-                                            startY: 0
-
-                                            // Опускаемся вниз до y = height - 20
-                                            PathLine {
-                                                x: 0
-                                                y: parent.height - 20
-                                            }
-
-                                            // Рисуем кривую (квадратичный сегмент) до середины низа
-                                            PathQuad {
-                                                x: parent.width / 2
-                                                y: parent.height
-                                                controlX: parent.width / 4
-                                                controlY: parent.height - 30
-                                            }
-
-                                            // Поднимаемся вверх до правого «низка» y = height - 20
-                                            PathLine {
-                                                x: parent.width
-                                                y: parent.height - 20
-                                            }
-
-                                            // Поднимаемся вверх до правого верхнего угла
-                                            PathLine {
-                                                x: parent.width
-                                                y: 0
-                                            }
-
-                                            // Замыкаем путь обратно к начальной точке
-                                            PathLine {
-                                                x: 0
-                                                y: 0
-                                            }
-                                        }
-                                    }
-                                }
-
-                                /*/
-                                // Поверх Shape располагаем ScrollView с TextArea
-                                ScrollView {
-                                    anchors.fill: parent
-                                    clip: true
-
-                                    TextArea {
-                                        id: systemLogArea
-                                        text: systemLogText
-                                        readOnly: true
-                                        wrapMode: TextArea.NoWrap
-                                        font.family: "monospace"
-                                        font.pixelSize: 13
-                                        anchors.fill: parent
-                                        padding: 8
-                                        background: Rectangle {
-                                            color: "transparent"
-                                        }
+                                    // Автоматически прокручивать вниз при обновлении
+                                    onTextChanged: {
+                                        cursorPosition = text.length;
                                     }
                                 }
                             }
@@ -1079,7 +1024,8 @@ Window {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                    systemLogText = xhr.responseText
+                    window.systemLogText = xhr.responseText
+                    console.log("Получен лог:", xhr.responseText);
                     window.successMessage = "Журнал системы загружен"
                     window.showSuccess = true
                     hideSuccessTimer.restart()

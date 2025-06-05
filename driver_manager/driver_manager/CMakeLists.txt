@@ -21,6 +21,7 @@ qt_add_qml_module(appdriver_manager
     QML_FILES
         Main.qml
     RESOURCES res/resources.qrc
+    QML_FILES WindowControls.qml
 )
 
 
