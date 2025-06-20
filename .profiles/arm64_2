@@ -1,0 +1,20 @@
+[settings]
+os=Linux
+arch=armv8        
+compiler=gcc
+compiler.cppstd=17
+compiler.version=14     
+compiler.libcxx=libstdc++11
+build_type=Release
+
+[buildenv]
+CC=aarch64-linux-gnu-gcc --sysroot=/home/jetpclaptop/aarch64-sysroot
+CXX=aarch64-linux-gnu-g++ --sysroot=/home/jetpclaptop/aarch64-sysroot
+AR=aarch64-linux-gnu-ar
+RANLIB=aarch64-linux-gnu-ranlib
+CFLAGS=--sysroot=/home/jetpclaptop/aarch64-sysroot
+CXXFLAGS=--sysroot=/home/jetpclaptop/aarch64-sysroot
+LDFLAGS=--sysroot=/home/jetpclaptop/aarch64-sysroot
+PKG_CONFIG_PATH=/home/jetpclaptop/aarch64-sysroot/usr/lib/pkgconfig
+
+

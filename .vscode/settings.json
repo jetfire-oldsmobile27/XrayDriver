@@ -81,6 +81,26 @@
         "xstring": "cpp",
         "xtr1common": "cpp",
         "xtree": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "cwctype": "cpp",
+        "bitset": "cpp",
+        "cinttypes": "cpp",
+        "deque": "cpp",
+        "set": "cpp",
+        "memory_resource": "cpp",
+        "numeric": "cpp",
+        "random": "cpp",
+        "regex": "cpp",
+        "string_view": "cpp",
+        "iostream": "cpp",
+        "numbers": "cpp",
+        "queue": "cpp",
+        "ranges": "cpp",
+        "semaphore": "cpp",
+        "span": "cpp",
+        "stack": "cpp",
+        "text_encoding": "cpp",
+        "cfenv": "cpp",
+        "valarray": "cpp"
     }
 }
