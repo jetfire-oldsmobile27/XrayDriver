@@ -17,7 +17,9 @@ RUN apt install -yq --no-install-recommends \
     cmake \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install conan && conan profile detect --force
+RUN git clone https://github.com/conan-io/conan.git conan_src \
+&& cd conan_src \
+&& python3 -m pip install -e . --break-system-packages && conan profile detect --force
 
 RUN gcc --version && conan --version
 
@@ -26,4 +28,6 @@ WORKDIR /workspace
 COPY ./conanfile.py /workspace
 RUN conan install . \
   --output-folder=build-arm \
-  --build=missing 
+  --build=missing \
+  -c tools.system.package_manager:mode=install && \
+  rm -rf build-arm
