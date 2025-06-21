@@ -1,6 +1,7 @@
+privileged:
+	sudo pacman -S qemu-user-static qemu-user-static-binfmt docker-buildx
 prepare:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes && \
-	sudo pacman -S docker-buildx && \
 	docker buildx create --use && \
     docker run --rm --privileged tonistiigi/binfmt --install all
 build:
