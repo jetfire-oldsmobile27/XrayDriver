@@ -7,9 +7,10 @@ set -euo pipefail
 PROJECT_ROOT="/home/wolfdale/workspace/projects/XrayDriver"
 DOCKCROSS_REPO="https://github.com/dockcross/dockcross.git"
 DOCKCROSS_DIR="./dockcross"
-DOCKCROSS_IMAGE="linux-arm64-lts"
+DOCKCROSS_IMAGE="linux-arm64"
 DOCKCROSS_SCRIPT="./dockcross-${DOCKCROSS_IMAGE}"
 CONAN_PROFILE="armv8"
+BUILD_PROFILE="x86_64-conan"
 CONAN_PROFILES_DIR="$HOME/.conan2/profiles"
 BUILD_DIR="build-armv8"
 
@@ -60,12 +61,15 @@ export DOCKER_RUN_ARGS="\
 "${PROJECT_ROOT}/${DOCKCROSS_DIR}/${DOCKCROSS_SCRIPT}" bash -c '
   set -euo pipefail
 
-  echo "Working dir: $(pwd)"
+  echo "Working dir: $(${CC})"
   sudo dpkg --add-architecture arm64
-  conan profile detect &&
-
-  conan install . \
+  ls /usr/xcc &&
+sudo apt update
+sudo apt install gcc g++
+which gcc
+  sudo conan install . \
     --profile:host='"${CONAN_PROFILE}"' \
+    --profile:build='"${BUILD_PROFILE}"' \
     --build=missing \
     -c tools.system.package_manager:mode=install \
     -c tools.system.package_manager:sudo=True \
