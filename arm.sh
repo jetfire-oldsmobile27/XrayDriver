@@ -27,46 +27,53 @@ if [ ! -x "${DOCKCROSS_SCRIPT}" ]; then
 fi
 cd - >/dev/null
 
-# 3. Создаём профиль Conan для ARMv8 на хосте, если не существует
-PROFILE_PATH="${CONAN_PROFILES_DIR}/${CONAN_PROFILE}"
-if [ ! -f "${PROFILE_PATH}" ]; then
-  echo "Создаём профиль Conan '${CONAN_PROFILE}'..."
-  mkdir -p "${CONAN_PROFILES_DIR}"
-  cat > "${PROFILE_PATH}" <<EOF
-[settings]
-os=Linux
-arch=armv8
-arch_build=x86_64
-compiler=gcc
-compiler.version=12
-compiler.libcxx=libstdc++11
-build_type=Release
+# 3.1 Монтирование sysroot 
+SYSROOT_DIR="/home/jetpclaptop/workspace/projects/XrayDriver/aarch64-sysroot"
+ROOTFS_TARBALL="Manjaro-ARM-aarch64-latest.tar.gz"
+ROOTFS_URL="https://github.com/manjaro-arm/rootfs/releases/download/20240916/${ROOTFS_TARBALL}"
 
-[env]
-CC=aarch64-linux-gnu-gcc
-CXX=aarch64-linux-gnu-g++
-EOF
+# if [ ! -d "${SYSROOT_DIR}/boot" ]; then
+# echo "Монтирование sysroot(ОБЯЗАТЕЛЬНО РАЗМОНТИРОВАТЬ!)"
+# fdisk -l ~/Downloads/Manjaro-ARM-kde-plasma-generic-23.02.img  
+# sudo losetup -fP --offset $(( 999424 * 512 )) ~/Downloads/Manjaro-ARM-kde-plasma-generic-23.02.img  
+# sudo mount /dev/loop0 ${SYSROOT_DIR}
+# fi
+
+# 3.2 Операции над sysroot
+
+if [ ! -f "${SYSROOT_DIR}/usr/bin/qemu-aarch64-static" ]; then
+  mkdir -p "${SYSROOT_DIR}"
+  echo "Скачиваем Manjaro-ARM rootfs..."
+  curl -L "${ROOTFS_URL}" -o "${ROOTFS_TARBALL}"
+  echo "Распаковываем rootfs в ${SYSROOT_DIR}..."
+  tar xfp "${ROOTFS_TARBALL}" -C "${SYSROOT_DIR}"
+  rm "${ROOTFS_TARBALL}"
+
+  echo "Устанавливаем dev-пакеты внутрь sysroot (pacman --root)..."
+  sudo pacman -Sy --noconfirm --root "${SYSROOT_DIR}" \
+  libxcb xcb-util-xkb xcb-util-wm xcb-util-keysyms \
+  xcb-util-image xcb-util-renderutil \
+  libxkbcommon libxkbcommon-x11
 fi
 
 # 4. Кросс-компиляция проекта
 echo "Запускаем сборку проекта в контейнере..."
 
-# смонтируем ~/.conan2, сам проект и выставим рабочую директорию
-export DOCKER_RUN_ARGS="\
-  -v ${HOME}/.conan2:${HOME}/.conan2 \
-  -v ${PROJECT_ROOT}:/project \
-  -w /project"
-
 # запускаем контейнер и передаём всё тело сюда
 "${PROJECT_ROOT}/${DOCKCROSS_DIR}/${DOCKCROSS_SCRIPT}" bash -c '
   set -euo pipefail
 
-  echo "Working dir: $(${CC})"
+  echo "Working dir: $(PWD)"
+  ls /usr/xcc/aarch64-unknown-linux-gnu/bin/
+  ls /work/aarch64-sysroot
   sudo dpkg --add-architecture arm64
-  ls /usr/xcc &&
 sudo apt update
 sudo apt install -yq gcc-11 g++-11
-ls /usr/bin
+sudo apt install -yq \
+  libxcb1-dev libxcb-xkb-dev libxcb-icccm4-dev \
+  libxcb-keysyms1-dev libxcb-image0-dev libxcb-render-util0-dev \
+  libxkbcommon-dev libxkbcommon-x11-dev 
+  export PKG_CONFIG_ALLOW_CROSS=1
   sudo conan install . \
     --profile:host='"${CONAN_PROFILE}"' \
     --profile:build='"${BUILD_PROFILE}"' \
