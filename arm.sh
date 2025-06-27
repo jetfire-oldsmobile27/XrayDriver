@@ -4,7 +4,7 @@ set -euo pipefail
 # Скрипт для кросс-компиляции проекта XrayDriver под ARMv8 (aarch64) с использованием Dockcross и Conan 2.x.
 
 # Параметры (можно изменить под свои нужды):
-PROJECT_ROOT="/home/wolfdale/workspace/projects/XrayDriver"
+PROJECT_ROOT="${PWD}"
 DOCKCROSS_REPO="https://github.com/dockcross/dockcross.git"
 DOCKCROSS_DIR="./dockcross"
 DOCKCROSS_IMAGE="linux-arm64"
@@ -65,8 +65,8 @@ export DOCKER_RUN_ARGS="\
   sudo dpkg --add-architecture arm64
   ls /usr/xcc &&
 sudo apt update
-sudo apt install gcc g++
-which gcc
+sudo apt install -yq gcc-11 g++-11
+ls /usr/bin
   sudo conan install . \
     --profile:host='"${CONAN_PROFILE}"' \
     --profile:build='"${BUILD_PROFILE}"' \

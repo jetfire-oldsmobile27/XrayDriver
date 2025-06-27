@@ -10,13 +10,36 @@ class jetfire27EngineConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     requires = ["boost/1.83.0", "sqlite3/3.45.0", "spdlog/1.14.0", "opencv/4.9.0"]
     generators = "CMakeToolchain", "CMakeDeps"
+    default_options = {
+    "*:shared": False,
+    "*:fPIC": True,
+    "libx264/*:asm": False,
+    # Оставляем только нужные модули
+    "opencv/*:with_eigen": False,
+    "opencv/*:with_ffmpeg": False,
+    "opencv/*:with_gstreamer": False,
+    "opencv/*:with_gtk": False,
+    "opencv/*:with_gtk2": False,
+    "opencv/*:with_qt": False,
+    "opencv/*:with_cuda": False,
+    "opencv/*:with_opencl": False,
+    "opencv/*:with_openmp": False,
+    "opencv/*:with_tbb": False,
+    "opencv/*:with_ipp": False,
+    "opencv/*:with_webp": False,
+    "opencv/*:with_jpeg": False,
+    "opencv/*:with_png": False,
+    "opencv/*:with_tiff": False,
+    "opencv/*:with_openexr": False,
+    "opencv/*:with_java": False,
+    "opencv/*:with_python": False,
+    "opencv/*:with_python2": False,
+    "opencv/*:with_python3": False,
+    }
+
     exports_sources = (
         "include/*", "src/*", "CMakeLists.txt", "main.cpp",
     )
-    if (platform.system() == 'Linux'):
-        default_options = {
-            "libiconv/*:shared": True,
-        }
 
     def layout(self):
         pass
@@ -29,6 +52,7 @@ class jetfire27EngineConan(ConanFile):
             "--enable-static",
             "--prefix=/",
             "--disable-nls",
+            "--disable-asm",
             "--disable-bootstrap",
             "HELP2MAN=/bin/true",
             "M4=m4",
