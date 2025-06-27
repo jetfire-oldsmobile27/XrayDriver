@@ -7,7 +7,7 @@ set -euo pipefail
 PROJECT_ROOT="${PWD}"
 DOCKCROSS_REPO="https://github.com/dockcross/dockcross.git"
 DOCKCROSS_DIR="./dockcross"
-DOCKCROSS_IMAGE="linux-arm64"
+DOCKCROSS_IMAGE="linux-arm64-lts"
 DOCKCROSS_SCRIPT="./dockcross-${DOCKCROSS_IMAGE}"
 CONAN_PROFILE="armv8"
 BUILD_PROFILE="x86_64-conan"
@@ -30,7 +30,7 @@ cd - >/dev/null
 # 3.1 Монтирование sysroot 
 SYSROOT_DIR="/home/jetpclaptop/workspace/projects/XrayDriver/aarch64-sysroot"
 ROOTFS_TARBALL="Manjaro-ARM-aarch64-latest.tar.gz"
-ROOTFS_URL="https://github.com/manjaro-arm/rootfs/releases/download/20240916/${ROOTFS_TARBALL}"
+ROOTFS_URL="https://github.com/manjaro-arm/rootfs/releases/download/20250623/${ROOTFS_TARBALL}"
 
 # if [ ! -d "${SYSROOT_DIR}/boot" ]; then
 # echo "Монтирование sysroot(ОБЯЗАТЕЛЬНО РАЗМОНТИРОВАТЬ!)"
@@ -51,19 +51,35 @@ if [ ! -f "${SYSROOT_DIR}/usr/bin/qemu-aarch64-static" ]; then
 
   echo "Устанавливаем dev-пакеты внутрь sysroot (pacman --root)..."
   sudo pacman -Sy --noconfirm --root "${SYSROOT_DIR}" \
-  libxcb xcb-util-xkb xcb-util-wm xcb-util-keysyms \
+  libxcb xcb-util xcb-util-wm xcb-util-keysyms \
   xcb-util-image xcb-util-renderutil \
   libxkbcommon libxkbcommon-x11
+
+  echo "Установка binutils для aarch64..."
+  sudo mount --bind /proc "${SYSROOT_DIR}/proc"
+  sudo mount --bind /sys "${SYSROOT_DIR}/sys"
+  sudo mount --bind /dev "${SYSROOT_DIR}/dev"
+  sudo chroot "${SYSROOT_DIR}" pacman -Syu --noconfirm binutils
+  sudo chroot "${SYSROOT_DIR}" pacman -Syu --noconfirm xcb-proto libxcb
+  sudo umount "${SYSROOT_DIR}/proc" "${SYSROOT_DIR}/sys" "${SYSROOT_DIR}/dev"
 fi
 
 # 4. Кросс-компиляция проекта
 echo "Запускаем сборку проекта в контейнере..."
+mkdir -p tools/build
+cat > tools/build/user-config.jam <<'EOF'
+using gcc : arm
+  : /usr/xcc/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-g++
+  : <compileflags>"--sysroot=/work/aarch64-sysroot"
+    <linkflags>"--sysroot=/work/aarch64-sysroot"
+  ;
+EOF
 
 # запускаем контейнер и передаём всё тело сюда
 "${PROJECT_ROOT}/${DOCKCROSS_DIR}/${DOCKCROSS_SCRIPT}" bash -c '
   set -euo pipefail
 
-  echo "Working dir: $(PWD)"
+  echo "Working dir:"
   ls /usr/xcc/aarch64-unknown-linux-gnu/bin/
   ls /work/aarch64-sysroot
   sudo dpkg --add-architecture arm64
@@ -74,12 +90,23 @@ sudo apt install -yq \
   libxcb-keysyms1-dev libxcb-image0-dev libxcb-render-util0-dev \
   libxkbcommon-dev libxkbcommon-x11-dev 
   export PKG_CONFIG_ALLOW_CROSS=1
+  export SYSROOT=/work/aarch64-sysroot
+  export CXXFLAGS="--sysroot=$SYSROOT"
+  export CFLAGS="--sysroot=$SYSROOT"
+  export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/lib -L$SYSROOT/lib"
+  
+  # Подменяем libstdc++.so, чтобы исключить зависимость от GLIBC_2.36
+  export LD_LIBRARY_PATH="/work/aarch64-sysroot/usr/lib:/work/aarch64-sysroot/lib"
+
+  # Проверка доступности компилятора
+  $CXX --version
   sudo conan install . \
     --profile:host='"${CONAN_PROFILE}"' \
     --profile:build='"${BUILD_PROFILE}"' \
     --build=missing \
     -c tools.system.package_manager:mode=install \
     -c tools.system.package_manager:sudo=True \
+    -c user.boost/*:stacktrace_addr2line_location=/work/aarch64-sysroot/usr/bin/addr2line \
     --output-folder='"${BUILD_DIR}"' &&
 
   cmake -S . -B '"${BUILD_DIR}"' \

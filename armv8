@@ -8,7 +8,10 @@ compiler.libcxx=libstdc++11
 build_type=Release
 
 [buildenv]
-CC=aarch64-unknown-linux-gnu-gcc --sysroot=/work/aarch64-sysroot
-CXX=aarch64-unknown-linux-gnu-g++ --sysroot=/work/aarch64-sysroot
-LD=/usr/xcc/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-ld --sysroot=/work/aarch64-sysroot
+CC=/usr/xcc/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-gcc 
+CXX=/usr/xcc/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-g++
+CFLAGS=--sysroot=/work/aarch64-sysroot
+CXXFLAGS=--sysroot=/work/aarch64-sysroot
+LDFLAGS=--sysroot=/work/aarch64-sysroot 
+LD=/usr/xcc/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-ld 
 AR=/usr/xcc/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-ar
