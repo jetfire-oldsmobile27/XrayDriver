@@ -89,6 +89,11 @@ sudo apt install -yq \
   libxcb1-dev libxcb-xkb-dev libxcb-icccm4-dev \
   libxcb-keysyms1-dev libxcb-image0-dev libxcb-render-util0-dev \
   libxkbcommon-dev libxkbcommon-x11-dev 
+  
+  sudo python3 -m pip install --upgrade pip --break-system-packages
+  sudo pip3 install --upgrade conan --break-system-packages
+  conan --version
+  
   export PKG_CONFIG_ALLOW_CROSS=1
   export SYSROOT=/work/aarch64-sysroot
   export CXXFLAGS="--sysroot=$SYSROOT"
@@ -101,19 +106,13 @@ sudo apt install -yq \
   # Проверка доступности компилятора
   $CXX --version
   sudo conan install . \
-    --profile:host='"${CONAN_PROFILE}"' \
-    --profile:build='"${BUILD_PROFILE}"' \
+    --profile:host="'"${CONAN_PROFILE}"'" \
+    --profile:build="'"${BUILD_PROFILE}"'" \
     --build=missing \
     -c tools.system.package_manager:mode=install \
     -c tools.system.package_manager:sudo=True \
     -c user.boost/*:stacktrace_addr2line_location=/work/aarch64-sysroot/usr/bin/addr2line \
-    --output-folder='"${BUILD_DIR}"' &&
-
-  cmake -S . -B '"${BUILD_DIR}"' \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_TOOLCHAIN_FILE='"${BUILD_DIR}"'/conan_toolchain.cmake &&
-
-  cmake --build '"${BUILD_DIR}"' -- -j"$(nproc)"
+    --output-folder="'"${BUILD_DIR}"'"
 '
 
 

@@ -8,48 +8,34 @@ class jetfire27EngineConan(ConanFile):
     version = "0.1"
     license = "LGPL"
     settings = "os", "compiler", "build_type", "arch"
-    requires = ["boost/1.83.0", "sqlite3/3.45.0", "spdlog/1.14.0", "opencv/4.9.0"]
     generators = "CMakeToolchain", "CMakeDeps"
     default_options = {
-    "*:shared": False,
-    "*:fPIC": True,
-    "libx264/*:asm": False,
-    # Оставляем только нужные модули
-    "opencv/*:with_eigen": False,
-    "opencv/*:with_ffmpeg": False,
-    "opencv/*:with_gstreamer": False,
-    "opencv/*:with_gtk": False,
-    "opencv/*:with_gtk2": False,
-    "opencv/*:with_qt": False,
-    "opencv/*:with_cuda": False,
-    "opencv/*:with_opencl": False,
-    "opencv/*:with_openmp": False,
-    "opencv/*:with_tbb": False,
-    "opencv/*:with_ipp": False,
-    "opencv/*:with_webp": False,
-    "opencv/*:with_jpeg": False,
-    "opencv/*:with_png": False,
-    "opencv/*:with_tiff": False,
-    "opencv/*:with_openexr": False,
-    "opencv/*:with_java": False,
-    "opencv/*:with_python": False,
-    "opencv/*:with_python2": False,
-    "opencv/*:with_python3": False,
+        "libx264/cci.20240224:with_asm": False,
     }
 
     exports_sources = (
         "include/*", "src/*", "CMakeLists.txt", "main.cpp",
     )
+    def requirements(self):
+        self.requires("boost/1.83.0")
+        self.requires("tgbot/1.8")
+        self.requires("sqlite3/3.45.0")
+        self.requires("spdlog/1.14.0")
+        self.requires("opencv/4.11.0", options={
+            "with_v4l": True
+        })
 
     def layout(self):
         pass
 
     def build(self):
         autotools = Autotools(self)
+        autotools.configure_args.append("--disable-doc")
         autotools.configure(args=[
             "--host=aarch64-linux-gnu",
             "--disable-shared",
             "--enable-static",
+            "-x assembler-with-cpp",
             "--prefix=/",
             "--disable-nls",
             "--disable-asm",
@@ -60,7 +46,7 @@ class jetfire27EngineConan(ConanFile):
             "ac_cv_func_realloc_0_nonnull=yes",
             "ac_cv_func_reallocarray=no"
         ])
-        autotools.make()
+        autotools.make(target="all")
         autotools.install()
         cmake = CMake(self)
         cmake.configure()

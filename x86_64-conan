@@ -1,0 +1,13 @@
+[settings]
+os=Linux
+arch=x86_64
+compiler=gcc
+compiler.version=12
+compiler.cstd=gnu11
+compiler.cppstd=gnu17
+compiler.libcxx=libstdc++
+build_type=Release
+
+[buildenv]
+CC=/usr/bin/gcc-11
+CXX=/usr/bin/g++-11
