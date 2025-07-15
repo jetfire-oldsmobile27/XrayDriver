@@ -32,6 +32,8 @@ class jetfire27EngineConan(ConanFile):
         autotools = Autotools(self)
         autotools.configure_args.append("--disable-doc")
         autotools.configure(args=[
+            "--disable-man",
+            "--disable-doc",
             "--host=aarch64-linux-gnu",
             "--disable-shared",
             "--enable-static",
