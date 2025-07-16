@@ -12,8 +12,6 @@ BUILD_PROFILE="x86_64-conan"
 CONAN_PROFILES_DIR="$HOME/.conan2/profiles"
 BUILD_DIR="build-armv8"
 
-M4_LOCAL_RECIPE="${PROJECT_ROOT}/recipes/m4/1.4.19"
-
 if [ ! -d "${DOCKCROSS_DIR}" ]; then
   echo "Клонируем dockcross в ${DOCKCROSS_DIR}..."
   git clone "${DOCKCROSS_REPO}" "${DOCKCROSS_DIR}"
@@ -26,16 +24,15 @@ if [ ! -x "${DOCKCROSS_SCRIPT}" ]; then
 fi
 cd - >/dev/null
 
-# 3.1 Монтирование sysroot (если требуется)
 SYSROOT_DIR="/home/jetpclaptop/workspace/projects/XrayDriver/aarch64-sysroot"
 ROOTFS_TARBALL="Manjaro-ARM-aarch64-latest.tar.gz"
 ROOTFS_URL="https://github.com/manjaro-arm/rootfs/releases/download/20250623/${ROOTFS_TARBALL}"
 
- if [ ! -d "${SYSROOT_DIR}/boot" ]; then
-# echo "Монтирование sysroot(ОБЯЗАТЕЛЬНО РАЗМОНТИРОВАТЬ!)"
-# fdisk -l ~/Downloads/Manjaro-ARM-kde-plasma-generic-23.02.img  
-# sudo losetup -fP --offset $(( 999424 * 512 )) ~/Downloads/Manjaro-ARM-kde-plasma-generic-23.02.img  
-# sudo mount /dev/loop0 ${SYSROOT_DIR}
+#  if [ ! -d "${SYSROOT_DIR}/boot" ]; then
+# # echo "Монтирование sysroot(ОБЯЗАТЕЛЬНО РАЗМОНТИРОВАТЬ!)"
+# # fdisk -l ~/Downloads/Manjaro-ARM-kde-plasma-generic-23.02.img  
+# # sudo losetup -fP --offset $(( 999424 * 512 )) ~/Downloads/Manjaro-ARM-kde-plasma-generic-23.02.img  
+# # sudo mount /dev/loop0 ${SYSROOT_DIR}
 # fi
 
 
@@ -72,6 +69,7 @@ using gcc : arm
   ;
 EOF
 
+
 "${PROJECT_ROOT}/${DOCKCROSS_DIR}/${DOCKCROSS_SCRIPT}" bash -c '
   set -euo pipefail
 
@@ -97,10 +95,8 @@ EOF
   export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/lib -L$SYSROOT/lib"
   export LD_LIBRARY_PATH="/work/aarch64-sysroot/usr/lib:/work/aarch64-sysroot/lib"
 
-  # Подключаем локальный рецепт m4 с вашим патчем в режиме editable
-  conan editable add m4/1.4.19@conan/stable /work/recipes/m4/1.4.19
+  conan editable add --name m4 --version 1.4.19 --user conan --channel stable /work/recipes/m4/1.4.19/all
 
-  # Устанавливаем зависимости и строим проект
   conan install . \
     --profile:host="'"${CONAN_PROFILE}"'" \
     --profile:build="'"${BUILD_PROFILE}"'" \
@@ -111,4 +107,4 @@ EOF
     --output-folder="'"${BUILD_DIR}"'"
 '
 
-echo "Сборка завершена. Артефакты в ${PROJECT_ROOT}/${BUILD_DIR}."
+echo "Сборка завершена. Артефакты в ${PROJECT_ROOT}/${BUILD_DIR}"
